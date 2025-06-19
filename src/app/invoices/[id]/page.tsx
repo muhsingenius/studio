@@ -48,6 +48,7 @@ export default function ViewInvoicePage() {
             ...data,
             dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
             dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
+            paymentDate: data.paymentDate && (data.paymentDate as Timestamp).toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
             createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
           } as Invoice;
           setInvoice(fetchedInvoice);

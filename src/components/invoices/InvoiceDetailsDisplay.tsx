@@ -106,7 +106,7 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
               {paymentDate && (
                 <div>
                   <span className="font-medium text-muted-foreground">Payment Date:</span>
-                  <p className="text-green-600">{format(new Date(paymentDate), "PPP")}</p>
+                  <p className="text-green-600">{format(paymentDate, "PPP")}</p>
                 </div>
               )}
               {paymentMethod && (
