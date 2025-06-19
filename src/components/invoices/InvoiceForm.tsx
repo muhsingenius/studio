@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { generateInvoiceText, type GenerateInvoiceTextInput } from "@/ai/flows/invoice-autocompletion";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
+import { useAuth } from "@/contexts/AuthContext";
 
 const invoiceItemSchema = z.object({
   id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)),
@@ -38,36 +38,17 @@ const invoiceSchema = z.object({
   dueDate: z.date({ required_error: "Due date is required." }),
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   notes: z.string().optional(),
-  status: z.enum(["Pending", "Paid", "Overdue"]).default("Pending"),
-  paymentDate: z.date().optional().nullable(),
-  paymentMethod: z.string().optional().nullable(),
-  paymentReference: z.string().optional().nullable(),
+  status: z.enum(["Pending", "Paid", "Overdue", "Partially Paid"]).default("Pending"),
+  // Removed paymentDate, paymentMethod, paymentReference from schema
   companyDetailsForAI: z.string().optional(),
   customerInformationForAI: z.string().optional(),
   optionalDataForAI: z.string().optional(),
-}).superRefine((data, ctx) => {
-  if (data.status === "Paid") {
-    if (!data.paymentDate) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Payment date is required for paid invoices.",
-        path: ["paymentDate"],
-      });
-    }
-    if (!data.paymentMethod || data.paymentMethod.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Payment method is required for paid invoices.",
-        path: ["paymentMethod"],
-      });
-    }
-  }
 });
 
 export type InvoiceFormInputs = z.infer<typeof invoiceSchema>;
 
 interface InvoiceFormProps {
-  invoice?: Invoice; // Existing invoice for editing
+  invoice?: Invoice; 
   customers: Customer[];
   taxSettings: TaxSettings;
   availableItems: Item[];
@@ -91,7 +72,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
   const [aiLoading, setAiLoading] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get current user
+  const { currentUser } = useAuth();
 
   const defaultValues = useMemo(() => {
     const now = new Date();
@@ -105,9 +86,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       items: invoice?.items.map(item => ({...item})) || [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString(), itemId: undefined }],
       notes: invoice?.notes || "",
       status: invoice?.status || "Pending",
-      paymentDate: invoice?.paymentDate ? new Date(invoice.paymentDate) : null,
-      paymentMethod: invoice?.paymentMethod || null,
-      paymentReference: invoice?.paymentReference || null,
+      // No direct payment fields in defaultValues
       companyDetailsForAI: "Ghana SME Tracker Inc.\nAccra, Ghana\nVAT Reg: X001234567",
       customerInformationForAI: invoice ? (customers.find(c => c.id === invoice.customerId)?.name || "") : "",
       optionalDataForAI: "",
@@ -126,11 +105,12 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
 
   const watchedItems = watch("items");
   const watchedCustomerId = watch("customerId");
-  const watchedStatus = watch("status");
+  // const watchedStatus = watch("status"); // Keep if needed for other logic, but payment details card is removed
 
-  const isInvoicePaid = invoice?.status === "Paid";
   const isUserAdmin = currentUser?.role === "Admin";
-  const isFormDisabledForPaid = isInvoicePaid && !isUserAdmin;
+  // Updated locking logic: an invoice is considered "Paid" for locking purposes if its status is "Paid".
+  // Further refinement based on totalPaidAmount vs totalAmount might occur when payment recording is added.
+  const isFormDisabledForPaid = formMode === 'edit' && invoice?.status === "Paid" && !isUserAdmin;
 
 
   useEffect(() => {
@@ -149,15 +129,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       }
     }
   }, [watchedCustomerId, customers, setValue]);
-
-  // Clear payment fields if status is not "Paid"
-  useEffect(() => {
-    if (watchedStatus !== "Paid") {
-      setValue("paymentDate", null);
-      setValue("paymentMethod", null);
-      setValue("paymentReference", null);
-    }
-  }, [watchedStatus, setValue]);
 
   const subtotal = useMemo(() => {
     return watchedItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
@@ -267,13 +238,12 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
         ...taxAmounts,
       },
       totalAmount: totalAmount,
+      totalPaidAmount: invoice?.totalPaidAmount || 0, // Initialize or carry over
       status: data.status,
       dateIssued: data.dateIssued,
       dueDate: data.dueDate,
       notes: data.notes,
-      paymentDate: data.status === "Paid" ? data.paymentDate : null,
-      paymentMethod: data.status === "Paid" ? data.paymentMethod : null,
-      paymentReference: data.status === "Paid" ? data.paymentReference : null,
+      // Direct payment fields removed
     };
     onSave(finalInvoiceDataToSend, data);
   };
@@ -294,13 +264,14 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                 <Select 
                   onValueChange={field.onChange} 
                   defaultValue={field.value}
-                  disabled={isInvoicePaid && !isUserAdmin && formMode === 'edit'} // Only admin can change status of a paid invoice
+                  disabled={isFormDisabledForPaid && formMode === 'edit'} 
                 >
                   <SelectTrigger className="w-full md:w-[180px] mt-2 md:mt-0">
                     <SelectValue placeholder="Set status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Partially Paid">Partially Paid</SelectItem>
                     <SelectItem value="Paid">Paid</SelectItem>
                     <SelectItem value="Overdue">Overdue</SelectItem>
                   </SelectContent>
@@ -311,7 +282,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
           {isFormDisabledForPaid && formMode === 'edit' && (
             <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm flex items-center">
               <AlertTriangle className="h-5 w-5 mr-2" />
-              This invoice is marked as Paid. Only Admins can edit its details.
+              This invoice is marked as Paid. Only Admins can change its status or notes. Other fields are locked.
             </div>
           )}
         </CardHeader>
@@ -428,74 +399,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             </Button>
           </div>
 
-          {/* Payment Details (conditionally shown) */}
-          {watchedStatus === "Paid" && (
-            <Card className="bg-green-50 border-green-200">
-              <CardHeader>
-                <CardTitle className="text-xl font-headline text-green-700">Payment Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="paymentDate">Payment Date *</Label>
-                  <Controller
-                    name="paymentDate"
-                    control={control}
-                    render={({ field }) => (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            id="paymentDate"
-                            variant="outline"
-                            className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground", errors.paymentDate && "border-destructive")}
-                            disabled={isFormDisabledForPaid}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus disabled={isFormDisabledForPaid}/>
-                        </PopoverContent>
-                      </Popover>
-                    )}
-                  />
-                  {errors.paymentDate && <p className="text-sm text-destructive mt-1">{errors.paymentDate.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="paymentMethod">Payment Method *</Label>
-                  <Controller
-                    name="paymentMethod"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} defaultValue={field.value || ""} disabled={isFormDisabledForPaid}>
-                        <SelectTrigger id="paymentMethod" aria-invalid={errors.paymentMethod ? "true" : "false"}>
-                          <SelectValue placeholder="Select payment method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Cash">Cash</SelectItem>
-                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                          <SelectItem value="Mobile Money">Mobile Money</SelectItem>
-                          <SelectItem value="Cheque">Cheque</SelectItem>
-                          <SelectItem value="Card">Card Payment</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {errors.paymentMethod && <p className="text-sm text-destructive mt-1">{errors.paymentMethod.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="paymentReference">Payment Reference (Optional)</Label>
-                  <Input
-                    id="paymentReference"
-                    {...control.register("paymentReference")}
-                    placeholder="e.g., Transaction ID, Cheque No."
-                    disabled={isFormDisabledForPaid}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Payment Details section removed */}
 
           {/* AI Autocompletion Section */}
           <Card className="bg-secondary/20 border-dashed">
@@ -512,7 +416,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                   placeholder="e.g., Your Company Name, Address, VAT Reg No."
                   {...control.register("companyDetailsForAI")}
                   rows={3}
-                  disabled={isFormDisabledForPaid}
+                  disabled={isFormDisabledForPaid && formMode === 'edit' && invoice?.status === 'Paid' && !isUserAdmin}
                 />
               </div>
               <div>
@@ -522,7 +426,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                   placeholder="Prefilled from selected customer. You can edit if needed."
                   {...control.register("customerInformationForAI")}
                   rows={3}
-                  disabled={isFormDisabledForPaid}
+                  disabled={isFormDisabledForPaid && formMode === 'edit' && invoice?.status === 'Paid' && !isUserAdmin}
                 />
               </div>
                <div>
@@ -532,10 +436,10 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                   placeholder="e.g., Specific terms, project codes, bank details for payment"
                   {...control.register("optionalDataForAI")}
                   rows={2}
-                  disabled={isFormDisabledForPaid}
+                  disabled={isFormDisabledForPaid && formMode === 'edit' && invoice?.status === 'Paid' && !isUserAdmin}
                 />
               </div>
-              <Button type="button" onClick={handleGenerateAIDescription} disabled={aiLoading || isFormDisabledForPaid} variant="outline" className="w-full md:w-auto">
+              <Button type="button" onClick={handleGenerateAIDescription} disabled={aiLoading || (isFormDisabledForPaid && formMode === 'edit' && invoice?.status === 'Paid' && !isUserAdmin)} variant="outline" className="w-full md:w-auto">
                 {aiLoading ? <LoadingSpinner size={16} className="mr-2"/> : <Wand2 className="mr-2 h-4 w-4" />}
                 {aiLoading ? "Generating..." : "Generate Invoice Notes with AI"}
               </Button>
@@ -550,7 +454,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
               placeholder="Additional information, terms and conditions, or payment details..."
               {...control.register("notes")}
               rows={4}
-              disabled={isFormDisabledForPaid}
+              disabled={isFormDisabledForPaid && formMode === 'edit' && invoice?.status === 'Paid' && !isUserAdmin}
             />
           </div>
 
@@ -589,7 +493,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
           <Button type="button" variant="outline" disabled={isSaving || isFormDisabledForPaid}>
             <Download className="mr-2 h-4 w-4" /> Download PDF (Placeholder)
           </Button>
-          <Button type="submit" disabled={isSaving || (formMode ==='edit' && isFormDisabledForPaid) } className="w-full md:w-auto">
+          <Button type="submit" disabled={isSaving || (formMode ==='edit' && isFormDisabledForPaid && invoice?.status === 'Paid' && !isUserAdmin) } className="w-full md:w-auto">
             {isSaving ? <LoadingSpinner size={16} className="mr-2"/> : <Save className="mr-2 h-4 w-4" />}
             {isSaving ? (formMode === "edit" ? "Updating..." : "Saving...") : (formMode === "edit" ? "Update Invoice" : "Save Invoice")}
           </Button>

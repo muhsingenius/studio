@@ -66,7 +66,6 @@ export default function EditInvoicePage() {
       setIsLoadingData(true);
       setError(null);
       try {
-        // Fetch invoice
         const invoiceDocRef = doc(db, "invoices", invoiceId);
         const invoiceSnap = await getDoc(invoiceDocRef);
 
@@ -82,7 +81,7 @@ export default function EditInvoicePage() {
               ...data,
               dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
               dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
-              paymentDate: (data.paymentDate as Timestamp)?.toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
+              totalPaidAmount: data.totalPaidAmount || 0, // Ensure totalPaidAmount is present
               createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
             } as Invoice;
             setInvoice(fetchedInvoice);
@@ -92,7 +91,6 @@ export default function EditInvoicePage() {
           toast({ title: "Not Found", description: `Invoice with ID ${invoiceId} does not exist.`, variant: "destructive" });
         }
 
-        // Fetch customers for the current business
         const customersCollectionRef = collection(db, "customers");
         const customersQuery = query(customersCollectionRef, where("businessId", "==", currentUser.businessId), orderBy("name", "asc"));
         const customerSnapshot = await getDocs(customersQuery);
@@ -103,7 +101,6 @@ export default function EditInvoicePage() {
         } as Customer));
         setCustomers(customersData);
 
-        // Fetch tax settings
         const taxSettingsDocRef = doc(db, "settings", "taxConfiguration");
         const taxSettingsSnap = await getDoc(taxSettingsDocRef);
         if (taxSettingsSnap.exists()) {
@@ -112,7 +109,6 @@ export default function EditInvoicePage() {
           setTaxSettings(defaultTaxSettings);
         }
 
-        // Fetch items
         const itemsCollectionRef = collection(db, "items");
         const itemsQuery = query(itemsCollectionRef, orderBy("name", "asc"));
         const itemsSnapshot = await getDocs(itemsQuery);
@@ -149,12 +145,16 @@ export default function EditInvoicePage() {
     setIsSaving(true);
     try {
       const invoiceDocRef = doc(db, "invoices", invoice.id);
-      await updateDoc(invoiceDocRef, {
+      // totalPaidAmount is not directly editable on this form, it's managed by payment recording.
+      // Ensure existing totalPaidAmount is preserved.
+      const dataToUpdate = {
         ...invoicePayload,
-        updatedAt: serverTimestamp(), // Add/update an updatedAt timestamp
-      });
+        totalPaidAmount: invoice.totalPaidAmount, // Preserve existing totalPaidAmount
+        updatedAt: serverTimestamp(),
+      };
+      await updateDoc(invoiceDocRef, dataToUpdate);
       toast({ title: "Invoice Updated", description: `Invoice ${invoicePayload.invoiceNumber} has been updated.` });
-      router.push(`/invoices/${invoice.id}`); // Redirect to view page after update
+      router.push(`/invoices/${invoice.id}`);
     } catch (error) {
       console.error("Error updating invoice: ", error);
       toast({ title: "Error", description: "Could not update invoice data.", variant: "destructive" });
@@ -190,7 +190,7 @@ export default function EditInvoicePage() {
     );
   }
   
-  if (!invoice) { // Should be caught by isLoadingData or error, but as a fallback
+  if (!invoice) { 
      return (
       <AuthGuard>
         <AuthenticatedLayout>
@@ -226,4 +226,3 @@ export default function EditInvoicePage() {
     </AuthGuard>
   );
 }
-

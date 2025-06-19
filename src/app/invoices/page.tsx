@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, isPast } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,11 +42,27 @@ import {
 import { useRouter } from "next/navigation"; 
 import { useAuth } from "@/contexts/AuthContext";
 
+const getDerivedStatus = (invoice: Invoice): InvoiceStatus => {
+  const outstandingAmount = invoice.totalAmount - (invoice.totalPaidAmount || 0);
+  if (outstandingAmount <= 0.001) { // Using a small epsilon for float comparisons
+    return "Paid";
+  }
+  if (invoice.totalPaidAmount > 0 && outstandingAmount > 0.001) {
+    return "Partially Paid";
+  }
+  if (isPast(new Date(invoice.dueDate)) && outstandingAmount > 0.001) {
+    return "Overdue";
+  }
+  return "Pending";
+};
+
+
 const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "destructive" | "outline" => {
   switch (status) {
-    case "Paid": return "default";
-    case "Pending": return "secondary";
-    case "Overdue": return "destructive";
+    case "Paid": return "default"; // Green
+    case "Pending": return "secondary"; // Yellow
+    case "Overdue": return "destructive"; // Red
+    case "Partially Paid": return "outline"; // Blue/Neutral
     default: return "outline";
   }
 };
@@ -78,21 +94,24 @@ export default function InvoicesPage() {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const invoicesData = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
-        return {
+        const invoice = {
           id: docSnapshot.id,
           ...data,
           dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
           dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
-          paymentDate: (data.paymentDate as Timestamp)?.toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
+          totalPaidAmount: data.totalPaidAmount || 0, // Ensure totalPaidAmount is present
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
         } as Invoice;
+        // The status from Firestore is kept for now, but derived status will be used for display logic
+        // It will be fully managed by payment recording logic in the future.
+        return invoice;
       });
       setInvoices(invoicesData);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching invoices: ", error);
       toast({ title: "Error", description: "Could not fetch invoices. Check Firestore indexes if prompted.", variant: "destructive" });
-      setInvoices([]); // Clear invoices on error
+      setInvoices([]); 
       setIsLoading(false);
     });
 
@@ -102,10 +121,7 @@ export default function InvoicesPage() {
   const handleDeleteInvoice = async (invoiceId: string) => {
     setIsDeleting(true);
     try {
-      // Ensure the invoice belongs to the current user's business before deleting
       const invoiceDocRef = doc(db, "invoices", invoiceId);
-      // Optional: Fetch doc to verify businessId before delete for extra security, 
-      // though Firestore rules should enforce this primarily.
       await deleteDoc(invoiceDocRef);
       toast({ title: "Invoice Deleted", description: "The invoice has been deleted.", variant: "destructive" });
     } catch (error) {
@@ -124,10 +140,14 @@ export default function InvoicesPage() {
     router.push(`/invoices/${invoiceId}/edit`);
   };
 
-  const filteredInvoices = invoices.filter(invoice =>
+  const processedInvoices = useMemo(() => 
+    invoices.map(inv => ({ ...inv, derivedStatus: getDerivedStatus(inv) }))
+  , [invoices]);
+
+  const filteredInvoices = processedInvoices.filter(invoice =>
     invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (invoice.customerName && invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    invoice.status.toLowerCase().includes(searchTerm.toLowerCase())
+    invoice.derivedStatus.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -188,12 +208,13 @@ export default function InvoicesPage() {
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>{format(new Date(invoice.dueDate), "dd MMM, yyyy")}</TableCell>
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>GHS {invoice.totalAmount.toFixed(2)}</TableCell>
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>
-                        <Badge variant={getStatusVariant(invoice.status)} className={cn(
-                            invoice.status === "Paid" ? "bg-green-500/20 text-green-700 border-green-500/30" : "",
-                            invoice.status === "Pending" ? "bg-yellow-500/20 text-yellow-700 border-yellow-500/30" : "",
-                            invoice.status === "Overdue" ? "bg-red-500/20 text-red-700 border-red-500/30" : ""
+                        <Badge variant={getStatusVariant(invoice.derivedStatus)} className={cn(
+                            invoice.derivedStatus === "Paid" ? "bg-green-500/20 text-green-700 border-green-500/30" : "",
+                            invoice.derivedStatus === "Pending" ? "bg-yellow-500/20 text-yellow-700 border-yellow-500/30" : "",
+                            invoice.derivedStatus === "Overdue" ? "bg-red-500/20 text-red-700 border-red-500/30" : "",
+                            invoice.derivedStatus === "Partially Paid" ? "bg-blue-500/20 text-blue-700 border-blue-500/30" : ""
                         )}>
-                            {invoice.status}
+                            {invoice.derivedStatus}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right space-x-1">

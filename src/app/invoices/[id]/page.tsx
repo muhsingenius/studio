@@ -9,7 +9,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import InvoiceDetailsDisplay from "@/components/invoices/InvoiceDetailsDisplay";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit } from "lucide-react"; // Import Edit icon
+import { ArrowLeft, Edit } from "lucide-react";
 import type { Invoice } from "@/types";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
@@ -30,7 +30,7 @@ export default function ViewInvoicePage() {
       setError("Invalid invoice ID.");
       setIsLoading(false);
       toast({ title: "Error", description: "Invalid invoice ID provided.", variant: "destructive" });
-      router.push("/invoices"); // Redirect if ID is invalid
+      router.push("/invoices");
       return;
     }
 
@@ -48,7 +48,7 @@ export default function ViewInvoicePage() {
             ...data,
             dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
             dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
-            paymentDate: data.paymentDate && (data.paymentDate as Timestamp)?.toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
+            totalPaidAmount: data.totalPaidAmount || 0, // Ensure totalPaidAmount is present
             createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
           } as Invoice;
           setInvoice(fetchedInvoice);

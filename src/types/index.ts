@@ -53,7 +53,7 @@ export interface InvoiceItem {
   itemId?: string;
 }
 
-export type InvoiceStatus = "Pending" | "Paid" | "Overdue";
+export type InvoiceStatus = "Pending" | "Paid" | "Overdue" | "Partially Paid"; // Added "Partially Paid"
 
 export interface Invoice {
   id: string;
@@ -72,6 +72,7 @@ export interface Invoice {
     totalTax: number;
   };
   totalAmount: number;
+  totalPaidAmount: number; // New field
   status: InvoiceStatus;
   dateIssued: Date;
   dueDate: Date;
@@ -79,9 +80,7 @@ export interface Invoice {
   pdfUrl?: string;
   createdAt: Date;
   businessId?: string; 
-  paymentDate?: Date;
-  paymentMethod?: string; 
-  paymentReference?: string; 
+  // Removed: paymentDate, paymentMethod, paymentReference
 }
 
 export interface Expense {
@@ -143,3 +142,16 @@ export interface BusinessUser {
   joinedAt: Date;
 }
 
+// New Payment type
+export interface Payment {
+  id: string; 
+  invoiceId: string; 
+  businessId: string; 
+  amountPaid: number;
+  paymentDate: Date;
+  paymentMethod: string; 
+  paymentReference?: string; 
+  notes?: string; 
+  recordedBy: string; 
+  createdAt: Date; 
+}

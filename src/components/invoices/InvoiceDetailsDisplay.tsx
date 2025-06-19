@@ -18,6 +18,7 @@ const getStatusVariant = (status: Invoice["status"]): "default" | "secondary" | 
     case "Paid": return "default";
     case "Pending": return "secondary";
     case "Overdue": return "destructive";
+    case "Partially Paid": return "outline"; // Example, adjust as needed
     default: return "outline";
   }
 };
@@ -33,11 +34,11 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
     subtotal,
     taxDetails,
     totalAmount,
+    totalPaidAmount, // Use new field
     notes,
-    paymentDate,
-    paymentMethod,
-    paymentReference,
   } = invoice;
+
+  const outstandingAmount = totalAmount - (totalPaidAmount || 0);
 
   return (
     <Card className="shadow-xl w-full max-w-4xl mx-auto">
@@ -56,7 +57,8 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
                 "text-lg px-4 py-1.5",
                 status === "Paid" ? "bg-green-100 text-green-700 border-green-300" : "",
                 status === "Pending" ? "bg-yellow-100 text-yellow-700 border-yellow-300" : "",
-                status === "Overdue" ? "bg-red-100 text-red-700 border-red-300" : ""
+                status === "Overdue" ? "bg-red-100 text-red-700 border-red-300" : "",
+                status === "Partially Paid" ? "bg-blue-100 text-blue-700 border-blue-300" : ""
               )}
             >
               {status}
@@ -99,31 +101,7 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
 
         <Separator />
         
-        {status === "Paid" && (paymentDate || paymentMethod) && (
-          <div className="bg-green-50 p-4 rounded-md border border-green-200">
-            <h3 className="text-lg font-semibold mb-2 font-headline text-green-700">Payment Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              {paymentDate && (
-                <div>
-                  <span className="font-medium text-muted-foreground">Payment Date:</span>
-                  <p className="text-green-600">{format(paymentDate, "PPP")}</p>
-                </div>
-              )}
-              {paymentMethod && (
-                 <div>
-                  <span className="font-medium text-muted-foreground">Payment Method:</span>
-                  <p className="text-green-600">{paymentMethod}</p>
-                </div>
-              )}
-              {paymentReference && (
-                <div>
-                  <span className="font-medium text-muted-foreground">Reference:</span>
-                  <p className="text-green-600">{paymentReference}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Payment Information section removed as individual payments will be listed separately later */}
 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -164,10 +142,19 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
                 </div>
               </>
             )}
+            <Separator className="my-1" />
+            <div className="flex justify-between text-lg font-semibold">
+              <span>Total Amount:</span>
+              <span>GHS {totalAmount.toFixed(2)}</span>
+            </div>
+             <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount Paid:</span>
+              <span className="font-medium text-green-600">GHS {(totalPaidAmount || 0).toFixed(2)}</span>
+            </div>
             <Separator className="my-2" />
             <div className="flex justify-between text-xl font-bold text-primary pt-1">
-              <span>Total Amount Due:</span>
-              <span>GHS {totalAmount.toFixed(2)}</span>
+              <span>Outstanding Amount:</span>
+              <span>GHS {outstandingAmount.toFixed(2)}</span>
             </div>
           </div>
         </div>

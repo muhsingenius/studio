@@ -24,6 +24,7 @@ import {
   where,
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 
 const defaultTaxSettings: TaxSettings = {
@@ -52,7 +53,6 @@ export default function NewInvoicePage() {
       }
       setIsLoadingData(true);
       try {
-        // Fetch customers for the current business
         const customersCollectionRef = collection(db, "customers");
         const customersQuery = query(customersCollectionRef, where("businessId", "==", currentUser.businessId), orderBy("name", "asc"));
         const customerSnapshot = await getDocs(customersQuery);
@@ -63,9 +63,7 @@ export default function NewInvoicePage() {
         } as Customer));
         setCustomers(customersData);
 
-        // Fetch tax settings (assuming global or business-specific if implemented later)
-        // For now, using a single 'taxConfiguration' document, could be scoped to businessId later
-        const taxSettingsDocRef = doc(db, "settings", "taxConfiguration"); // Potentially: doc(db, "businesses", currentUser.businessId, "settings", "taxConfiguration")
+        const taxSettingsDocRef = doc(db, "settings", "taxConfiguration"); 
         const taxSettingsSnap = await getDoc(taxSettingsDocRef);
         if (taxSettingsSnap.exists()) {
           setTaxSettings(taxSettingsSnap.data() as TaxSettings);
@@ -74,9 +72,7 @@ export default function NewInvoicePage() {
           setTaxSettings(defaultTaxSettings);
         }
 
-        // Fetch items (potentially scoped to businessId)
         const itemsCollectionRef = collection(db, "items");
-        // Add where clause if items are business-specific: where("businessId", "==", currentUser.businessId)
         const itemsQuery = query(itemsCollectionRef, orderBy("name", "asc")); 
         const itemsSnapshot = await getDocs(itemsQuery);
         const itemsData = itemsSnapshot.docs.map(docSnapshot => ({
@@ -94,7 +90,7 @@ export default function NewInvoicePage() {
           description: "Could not load customer, tax, or item data. Please try again.",
           variant: "destructive",
         });
-        if (!taxSettings) { // Ensure taxSettings is not null if fetch fails partially
+        if (!taxSettings) { 
           setTaxSettings(defaultTaxSettings);
         }
       } finally {
@@ -113,7 +109,9 @@ export default function NewInvoicePage() {
     try {
       const docToSave = {
         ...invoicePayload,
-        businessId: currentUser.businessId, // Add businessId
+        businessId: currentUser.businessId, 
+        totalPaidAmount: 0, // Initialize totalPaidAmount for new invoices
+        status: invoicePayload.status || "Pending", // Ensure status is set, default to Pending
         createdAt: serverTimestamp(),
       };
       const docRef = await addDoc(collection(db, "invoices"), docToSave);
@@ -134,7 +132,7 @@ export default function NewInvoicePage() {
     }
   };
 
-  if (isLoadingData || !taxSettings) { // Check taxSettings as well
+  if (isLoadingData || !taxSettings) { 
     return (
       <AuthGuard>
         <AuthenticatedLayout>
