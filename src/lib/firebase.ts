@@ -1,7 +1,8 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore"; // Import enableIndexedDbPersistence
 import { getFunctions, type Functions } from "firebase/functions";
 
 // Your web app's Firebase configuration
@@ -43,6 +44,24 @@ if (!getApps().length) {
 
 auth = getAuth(app);
 db = getFirestore(app);
+
+// Enable Firestore persistence
+if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
+  enableIndexedDbPersistence(db)
+    .then(() => {
+      console.log("Firestore offline persistence enabled.");
+    })
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn("Firestore persistence failed (failed-precondition). This can happen if you have multiple tabs open or if persistence is already enabled. The app can still function but might not have full offline capabilities.");
+      } else if (err.code === 'unimplemented') {
+        console.warn("Firestore persistence failed (unimplemented). The current browser does not support all of the features required to enable persistence.");
+      } else {
+        console.error("Firestore persistence failed with error: ", err);
+      }
+    });
+}
+
 functions = getFunctions(app); // Initialize Cloud Functions
 
 export { app, auth, db, functions };
@@ -66,3 +85,4 @@ NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
 You can find these credentials in your Firebase project settings:
 Project Overview -> Project settings (gear icon) -> General tab -> Your apps -> Web app -> Firebase SDK snippet -> Config.
 */
+
