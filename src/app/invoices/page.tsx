@@ -38,6 +38,7 @@ import {
   orderBy,
   Timestamp
 } from "firebase/firestore";
+import { useRouter } from "next/navigation"; // Added for navigation
 
 const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "destructive" | "outline" => {
   switch (status) {
@@ -54,11 +55,11 @@ export default function InvoicesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const router = useRouter(); // Initialize router
 
   useEffect(() => {
     setIsLoading(true);
     const invoicesCollectionRef = collection(db, "invoices");
-    // Consider ordering by dateIssued or createdAt in descending order
     const q = query(invoicesCollectionRef, orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -95,6 +96,10 @@ export default function InvoicesPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleViewInvoice = (invoiceId: string) => {
+    router.push(`/invoices/${invoiceId}`);
   };
 
   const filteredInvoices = invoices.filter(invoice =>
@@ -150,7 +155,11 @@ export default function InvoicesPage() {
               <TableBody>
                 {!isLoading && filteredInvoices.length > 0 ? (
                   filteredInvoices.map((invoice) => (
-                    <TableRow key={invoice.id} className="hover:bg-muted/50 transition-colors">
+                    <TableRow 
+                      key={invoice.id} 
+                      className="hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => handleViewInvoice(invoice.id)}
+                    >
                       <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                       <TableCell>{invoice.customerName || "N/A"}</TableCell>
                       <TableCell>{format(new Date(invoice.dateIssued), "dd MMM, yyyy")}</TableCell>
@@ -166,18 +175,39 @@ export default function InvoicesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right space-x-1">
-                        <Button variant="ghost" size="icon" title="View Invoice"> {/* View page not yet created */}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="View Invoice"
+                          onClick={(e) => { e.stopPropagation(); handleViewInvoice(invoice.id); }}
+                        >
                            <ViewIcon className="h-4 w-4 text-blue-600" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Edit Invoice"> {/* Edit page not yet created */}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="Edit Invoice" 
+                          onClick={(e) => { e.stopPropagation(); /* router.push(`/invoices/edit/${invoice.id}`); */ toast({ title: "Coming Soon", description: "Invoice editing will be available soon."}) }}
+                        >
                             <Edit className="h-4 w-4 text-yellow-600" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Download PDF"> {/* Placeholder action */}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="Download PDF"
+                          onClick={(e) => { e.stopPropagation(); toast({ title: "Coming Soon", description: "PDF download will be available soon."}) }}
+                        >
                             <FileDown className="h-4 w-4 text-gray-600" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Delete Invoice" disabled={isDeleting}>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              title="Delete Invoice" 
+                              disabled={isDeleting}
+                              onClick={(e) => e.stopPropagation()} // Prevent row click
+                            >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </AlertDialogTrigger>
