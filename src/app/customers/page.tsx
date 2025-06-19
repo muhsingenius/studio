@@ -7,7 +7,7 @@ import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import CustomerForm from "@/components/customers/CustomerForm";
 import type { Customer } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -37,8 +37,14 @@ import {
   onSnapshot,
   query,
   orderBy,
-  Timestamp
+  Timestamp,
+  where
 } from "firebase/firestore";
+import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
+
+// Define the type for data coming from CustomerForm
+type CustomerFormInputs = Omit<Customer, "id" | "createdAt" | "businessId" | "createdBy">;
+
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -47,19 +53,39 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get currentUser from AuthContext
 
   useEffect(() => {
+    if (!currentUser || !currentUser.businessId) {
+      setIsLoading(false);
+      setCustomers([]); // Clear customers if no business context
+      if (currentUser && !currentUser.businessId && !isLoading) {
+        // This case should ideally be handled by redirection, but as a fallback:
+        // toast({ title: "Notice", description: "Business context not available. Please complete business setup.", variant: "default" });
+      }
+      return;
+    }
+
     setIsLoading(true);
     const customersCollectionRef = collection(db, "customers");
-    const q = query(customersCollectionRef, orderBy("createdAt", "desc"));
+    const q = query(
+      customersCollectionRef,
+      where("businessId", "==", currentUser.businessId), // Filter by businessId
+      orderBy("createdAt", "desc")
+    );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const customersData = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         return {
           id: docSnapshot.id,
-          ...data,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          location: data.location,
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+          businessId: data.businessId,
+          createdBy: data.createdBy,
         } as Customer;
       });
       setCustomers(customersData);
@@ -71,9 +97,13 @@ export default function CustomersPage() {
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, currentUser, isLoading]); // Add currentUser to dependencies
 
   const handleAddCustomer = () => {
+    if (!currentUser?.businessId) {
+      toast({ title: "Action Denied", description: "Business context is missing. Cannot add customer.", variant: "destructive" });
+      return;
+    }
     setSelectedCustomer(null);
     setIsFormOpen(true);
   };
@@ -83,16 +113,24 @@ export default function CustomersPage() {
     setIsFormOpen(true);
   };
 
-  const handleSaveCustomer = async (data: Omit<Customer, "id" | "createdAt">) => {
+  const handleSaveCustomer = async (data: CustomerFormInputs) => {
     setIsLoading(true);
+    if (!currentUser || !currentUser.businessId || !currentUser.id) {
+      toast({ title: "Error", description: "User or business context is missing. Cannot save customer.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (selectedCustomer) {
         const customerDocRef = doc(db, "customers", selectedCustomer.id);
-        await updateDoc(customerDocRef, { ...data });
+        await updateDoc(customerDocRef, { ...data }); // data only contains form fields
         toast({ title: "Customer Updated", description: `${data.name} has been updated successfully.` });
       } else {
         await addDoc(collection(db, "customers"), {
           ...data,
+          businessId: currentUser.businessId,
+          createdBy: currentUser.id,
           createdAt: serverTimestamp(),
         });
         toast({ title: "Customer Added", description: `${data.name} has been added successfully.` });
@@ -134,7 +172,7 @@ export default function CustomersPage() {
           title="Customer Management"
           description="View, add, and manage your customer records."
           actions={
-            <Button onClick={handleAddCustomer} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button onClick={handleAddCustomer} className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!currentUser?.businessId || isLoading}>
               <PlusCircle className="mr-2 h-5 w-5" /> Add New Customer
             </Button>
           }
@@ -149,11 +187,12 @@ export default function CustomersPage() {
               className="w-full pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={!currentUser?.businessId}
             />
           </div>
         </div>
 
-        {isLoading && customers.length === 0 && <LoadingSpinner fullPage />}
+        {isLoading && <LoadingSpinner fullPage={customers.length === 0} />}
 
         <Card className="shadow-lg">
           <div className="overflow-x-auto">
@@ -176,12 +215,12 @@ export default function CustomersPage() {
                       <TableCell>{customer.email || "N/A"}</TableCell>
                       <TableCell>{customer.location}</TableCell>
                       <TableCell className="text-right space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditCustomer(customer)} title="Edit Customer" disabled={isLoading}>
                           <Edit className="h-4 w-4 text-blue-600" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Delete Customer">
+                            <Button variant="ghost" size="icon" title="Delete Customer" disabled={isLoading}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </AlertDialogTrigger>
@@ -211,13 +250,15 @@ export default function CustomersPage() {
                   !isLoading && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                        {customers.length === 0 ? "No customers yet. Add your first customer!" : "No customers match your search."}
+                        {!currentUser?.businessId ? "Business context not loaded. Please ensure business setup is complete." :
+                         customers.length === 0 ? "No customers yet. Add your first customer!" : "No customers match your search."}
                       </TableCell>
                     </TableRow>
                   )
                 )}
               </TableBody>
             </Table>
+            {/* Redundant loading spinner here if fullPage is used above, but kept for partial loading */}
             {isLoading && customers.length > 0 && <div className="p-4 text-center"><LoadingSpinner /></div>}
           </div>
         </Card>

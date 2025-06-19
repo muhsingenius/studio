@@ -1,6 +1,5 @@
 
 
-
 export type Role = "Admin" | "Accountant" | "Staff";
 
 export interface User {
@@ -17,8 +16,9 @@ export interface Customer {
   phone: string;
   email?: string;
   location: string;
-  createdAt: Date;
-  businessId?: string; // Optional: To scope customers to a business
+  createdAt: Date; // Represents Firestore Timestamp converted to Date client-side
+  businessId: string; // Now required
+  createdBy: string; // UID of the user who created the customer
 }
 
 export type ItemType = 'inventory' | 'non-inventory' | 'service' | 'digital' | 'bundle';
