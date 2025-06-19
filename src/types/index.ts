@@ -1,5 +1,6 @@
 
 
+
 export type Role = "Admin" | "Accountant" | "Staff";
 
 export interface User {
@@ -127,6 +128,7 @@ export interface Business {
   industry?: string;
   location?: string;
   currency?: string;
+  logoUrl?: string; // Added for business logo
   createdBy: string; // UID of the user who created the business
   adminUids: string[]; // Array of UIDs of users who are admins for this business
   createdAt: Date;
@@ -141,3 +143,4 @@ export interface BusinessUser {
   isActive: boolean;
   joinedAt: Date;
 }
+

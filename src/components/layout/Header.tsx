@@ -1,6 +1,7 @@
+
 "use client";
 
-import { Bell, LogOut, UserCircle, Menu, ChevronDown } from "lucide-react";
+import { Bell, LogOut, UserCircle, Menu, ChevronDown, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -61,9 +62,16 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
               <DropdownMenuItem asChild>
                 <Link href="/profile"> {/* Placeholder, profile page not yet created */}
                   <UserCircle className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
+                  <span>My Profile</span>
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings/business">
+                  <Briefcase className="mr-2 h-4 w-4" />
+                  <span>Business Settings</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
