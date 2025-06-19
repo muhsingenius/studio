@@ -41,7 +41,7 @@ export default function LoginForm() {
         title: "Login Successful",
         description: "Welcome back!",
       });
-      router.push("/dashboard"); // Redirect to dashboard after successful login
+      router.push("/"); // Redirect to home page to handle onboarding/dashboard logic
     } catch (error: any) {
       console.error("Login error:", error);
       toast({

@@ -63,7 +63,7 @@ export default function SignupForm() {
         title: "Signup Successful",
         description: "Your account has been created. Welcome!",
       });
-      router.push("/dashboard"); // Redirect to dashboard after successful signup
+      router.push("/"); // Redirect to home page to handle onboarding logic
     } catch (error: any) {
       console.error("Signup error:", error);
       toast({
