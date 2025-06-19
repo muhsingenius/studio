@@ -16,6 +16,7 @@ import type { Item, ItemType } from "@/types";
 import { useEffect } from "react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils"; // Added missing import
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
   { value: "inventory", label: "Inventory" },
@@ -96,14 +97,15 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
   const watchedType = watch("type");
 
   useEffect(() => {
-    if (watchedType === 'inventory') {
-      if (getValues('trackInventory') === false && !item) { // Only auto-enable for new items or if explicitly set to false
-          setValue('trackInventory', true);
-      }
-    } else {
+    if (watchedType !== 'inventory') {
       setValue('trackInventory', false);
+    } else {
+      // When switching to inventory, if it's a new item or trackInventory was explicitly false, set it to true
+      if (!item || getValues('trackInventory') === false) {
+        setValue('trackInventory', true);
+      }
     }
-  }, [watchedType, setValue, getValues, item]);
+  }, [watchedType, setValue, item, getValues]);
 
   const isTrackInventoryDisabled = watchedType !== 'inventory';
   const showInventoryFields = watchedType === 'inventory' && watchedTrackInventory;
