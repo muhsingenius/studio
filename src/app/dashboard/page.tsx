@@ -1,3 +1,4 @@
+
 "use client";
 
 import AuthGuard from "@/components/auth/AuthGuard";
@@ -5,6 +6,7 @@ import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, FileText, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Placeholder data - replace with actual data fetching
 const summaryData = {
