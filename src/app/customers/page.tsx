@@ -57,12 +57,8 @@ export default function CustomersPage() {
 
   useEffect(() => {
     if (!currentUser || !currentUser.businessId) {
-      setIsLoading(false);
       setCustomers([]); // Clear customers if no business context
-      if (currentUser && !currentUser.businessId && !isLoading) {
-        // This case should ideally be handled by redirection, but as a fallback:
-        // toast({ title: "Notice", description: "Business context not available. Please complete business setup.", variant: "default" });
-      }
+      setIsLoading(false);
       return;
     }
 
@@ -93,11 +89,12 @@ export default function CustomersPage() {
     }, (error) => {
       console.error("Error fetching customers: ", error);
       toast({ title: "Error", description: "Could not fetch customers.", variant: "destructive" });
+      setCustomers([]); // Clear customers on error
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [toast, currentUser, isLoading]); // Add currentUser to dependencies
+  }, [currentUser, toast]); // Corrected dependencies: only currentUser and toast
 
   const handleAddCustomer = () => {
     if (!currentUser?.businessId) {
@@ -114,7 +111,7 @@ export default function CustomersPage() {
   };
 
   const handleSaveCustomer = async (data: CustomerFormInputs) => {
-    setIsLoading(true);
+    setIsLoading(true); // Consider setting a more specific saving loader if needed
     if (!currentUser || !currentUser.businessId || !currentUser.id) {
       toast({ title: "Error", description: "User or business context is missing. Cannot save customer.", variant: "destructive" });
       setIsLoading(false);
@@ -141,12 +138,14 @@ export default function CustomersPage() {
       console.error("Error saving customer: ", error);
       toast({ title: "Error", description: "Could not save customer data to Firestore.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Ensure main page loading is false if it was set
     }
   };
 
   const handleDeleteCustomer = async (customerId: string) => {
-    setIsLoading(true);
+    // Consider a specific deleting loader, not the main page setIsLoading
+    // For now, this is okay as it's a quick operation.
+    // setIsLoading(true); 
     try {
       const customerDocRef = doc(db, "customers", customerId);
       await deleteDoc(customerDocRef);
@@ -155,7 +154,7 @@ export default function CustomersPage() {
       console.error("Error deleting customer: ", error);
       toast({ title: "Error", description: "Could not delete customer from Firestore.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
@@ -187,81 +186,78 @@ export default function CustomersPage() {
               className="w-full pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={!currentUser?.businessId}
+              disabled={!currentUser?.businessId || isLoading}
             />
           </div>
         </div>
 
-        {isLoading && <LoadingSpinner fullPage={customers.length === 0} />}
-
-        <Card className="shadow-lg">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {!isLoading && filteredCustomers.length > 0 ? (
-                  filteredCustomers.map((customer) => (
-                    <TableRow key={customer.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell>{customer.phone}</TableCell>
-                      <TableCell>{customer.email || "N/A"}</TableCell>
-                      <TableCell>{customer.location}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditCustomer(customer)} title="Edit Customer" disabled={isLoading}>
-                          <Edit className="h-4 w-4 text-blue-600" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Delete Customer" disabled={isLoading}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the customer "{customer.name}".
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteCustomer(customer.id)}
-                                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                disabled={isLoading}
-                              >
-                                {isLoading ? <LoadingSpinner size={16} /> : "Delete"}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  !isLoading && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                        {!currentUser?.businessId ? "Business context not loaded. Please ensure business setup is complete." :
-                         customers.length === 0 ? "No customers yet. Add your first customer!" : "No customers match your search."}
-                      </TableCell>
-                    </TableRow>
-                  )
-                )}
-              </TableBody>
-            </Table>
-            {/* Redundant loading spinner here if fullPage is used above, but kept for partial loading */}
-            {isLoading && customers.length > 0 && <div className="p-4 text-center"><LoadingSpinner /></div>}
-          </div>
-        </Card>
+        {isLoading && <LoadingSpinner fullPage />} 
+        
+        {!isLoading && (
+          <Card className="shadow-lg">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.length > 0 ? (
+                    filteredCustomers.map((customer) => (
+                      <TableRow key={customer.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell className="font-medium">{customer.name}</TableCell>
+                        <TableCell>{customer.phone}</TableCell>
+                        <TableCell>{customer.email || "N/A"}</TableCell>
+                        <TableCell>{customer.location}</TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
+                            <Edit className="h-4 w-4 text-blue-600" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" title="Delete Customer">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the customer "{customer.name}".
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteCustomer(customer.id)}
+                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                          {!currentUser?.businessId ? "Business context not loaded. Please ensure business setup is complete." :
+                          customers.length === 0 ? "No customers yet. Add your first customer!" : "No customers match your search."}
+                        </TableCell>
+                      </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        )}
 
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           {isFormOpen && (
