@@ -34,6 +34,9 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
     taxDetails,
     totalAmount,
     notes,
+    paymentDate,
+    paymentMethod,
+    paymentReference,
   } = invoice;
 
   return (
@@ -95,6 +98,33 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
         </div>
 
         <Separator />
+        
+        {status === "Paid" && (paymentDate || paymentMethod) && (
+          <div className="bg-green-50 p-4 rounded-md border border-green-200">
+            <h3 className="text-lg font-semibold mb-2 font-headline text-green-700">Payment Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              {paymentDate && (
+                <div>
+                  <span className="font-medium text-muted-foreground">Payment Date:</span>
+                  <p className="text-green-600">{format(new Date(paymentDate), "PPP")}</p>
+                </div>
+              )}
+              {paymentMethod && (
+                 <div>
+                  <span className="font-medium text-muted-foreground">Payment Method:</span>
+                  <p className="text-green-600">{paymentMethod}</p>
+                </div>
+              )}
+              {paymentReference && (
+                <div>
+                  <span className="font-medium text-muted-foreground">Reference:</span>
+                  <p className="text-green-600">{paymentReference}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>

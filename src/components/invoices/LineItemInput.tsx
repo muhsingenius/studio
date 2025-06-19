@@ -4,9 +4,9 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
-import type { InvoiceItem, Item as ProductItem } from "@/types"; // Renamed Item to ProductItem to avoid conflict
+import type { InvoiceItem, Item as ProductItem } from "@/types"; 
 import { useEffect } from "react";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox"; // Import the new Combobox
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"; 
 
 interface LineItemInputProps {
   item: InvoiceItem;
@@ -38,16 +38,14 @@ export default function LineItemInput({
     label: product.name,
   }));
 
-  // Auto-calculate total when quantity or unitPrice changes via direct input
   useEffect(() => {
-    if (!item.itemId) { // Only auto-calculate if not linked to a selected item, or allow override
+    if (!isReadOnly && !item.itemId) { 
         const newTotal = item.quantity * item.unitPrice;
         if (item.total !== newTotal) {
           onChange(index, "total", newTotal);
         }
     }
-    // If item.itemId is set, total is calculated in InvoiceForm's handleItemSelect or when quantity changes
-  }, [item.quantity, item.unitPrice, item.itemId, item.total, index, onChange]);
+  }, [item.quantity, item.unitPrice, item.itemId, item.total, index, onChange, isReadOnly]);
 
 
   return (
@@ -61,7 +59,7 @@ export default function LineItemInput({
           searchPlaceholder="Search items..."
           notFoundText="No item found."
           disabled={isReadOnly}
-          className={isReadOnly ? "bg-muted" : ""}
+          className={isReadOnly ? "bg-muted cursor-not-allowed" : ""}
         />
       </div>
       <div className="col-span-4 md:col-span-2">
@@ -74,6 +72,7 @@ export default function LineItemInput({
           step="any"
           readOnly={isReadOnly}
           aria-label={`Item ${index + 1} quantity`}
+          className={isReadOnly ? "bg-muted cursor-not-allowed" : ""}
         />
       </div>
       <div className="col-span-4 md:col-span-2">
@@ -86,6 +85,7 @@ export default function LineItemInput({
           step="0.01"
           readOnly={isReadOnly}
           aria-label={`Item ${index + 1} unit price`}
+          className={isReadOnly ? "bg-muted cursor-not-allowed" : ""}
         />
       </div>
       <div className="col-span-4 md:col-span-2 flex items-center justify-end">

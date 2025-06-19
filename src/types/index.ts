@@ -1,5 +1,4 @@
 
-
 export type Role = "Admin" | "Accountant" | "Staff";
 
 export interface User {
@@ -17,7 +16,7 @@ export interface Customer {
   email?: string;
   location: string;
   createdAt: Date; // Represents Firestore Timestamp converted to Date client-side
-  businessId: string; // Now required
+  businessId: string; 
   createdBy: string; // UID of the user who created the customer
 }
 
@@ -80,6 +79,9 @@ export interface Invoice {
   pdfUrl?: string;
   createdAt: Date;
   businessId?: string; // Optional: To scope invoices to a business
+  paymentDate?: Date;
+  paymentMethod?: string; // e.g., "Cash", "Bank Transfer", "Mobile Money"
+  paymentReference?: string; // e.g., Transaction ID, Cheque Number
 }
 
 export interface Expense {
@@ -128,7 +130,7 @@ export interface Business {
   industry?: string;
   location?: string;
   currency?: string;
-  logoUrl?: string; // Added for business logo
+  logoUrl?: string; 
   createdBy: string; // UID of the user who created the business
   adminUids: string[]; // Array of UIDs of users who are admins for this business
   createdAt: Date;

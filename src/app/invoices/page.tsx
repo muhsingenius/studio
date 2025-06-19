@@ -36,9 +36,11 @@ import {
   onSnapshot,
   query,
   orderBy,
-  Timestamp
+  Timestamp,
+  where
 } from "firebase/firestore";
-import { useRouter } from "next/navigation"; // Added for navigation
+import { useRouter } from "next/navigation"; 
+import { useAuth } from "@/contexts/AuthContext";
 
 const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "destructive" | "outline" => {
   switch (status) {
@@ -55,12 +57,23 @@ export default function InvoicesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-  const router = useRouter(); // Initialize router
+  const router = useRouter(); 
+  const { currentUser } = useAuth();
 
   useEffect(() => {
+    if (!currentUser || !currentUser.businessId) {
+      setInvoices([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     const invoicesCollectionRef = collection(db, "invoices");
-    const q = query(invoicesCollectionRef, orderBy("createdAt", "desc"));
+    const q = query(
+      invoicesCollectionRef, 
+      where("businessId", "==", currentUser.businessId),
+      orderBy("createdAt", "desc")
+    );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const invoicesData = querySnapshot.docs.map(docSnapshot => {
@@ -70,6 +83,7 @@ export default function InvoicesPage() {
           ...data,
           dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
           dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
+          paymentDate: (data.paymentDate as Timestamp)?.toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
         } as Invoice;
       });
@@ -77,17 +91,21 @@ export default function InvoicesPage() {
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching invoices: ", error);
-      toast({ title: "Error", description: "Could not fetch invoices.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not fetch invoices. Check Firestore indexes if prompted.", variant: "destructive" });
+      setInvoices([]); // Clear invoices on error
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, [currentUser, toast]);
 
   const handleDeleteInvoice = async (invoiceId: string) => {
     setIsDeleting(true);
     try {
+      // Ensure the invoice belongs to the current user's business before deleting
       const invoiceDocRef = doc(db, "invoices", invoiceId);
+      // Optional: Fetch doc to verify businessId before delete for extra security, 
+      // though Firestore rules should enforce this primarily.
       await deleteDoc(invoiceDocRef);
       toast({ title: "Invoice Deleted", description: "The invoice has been deleted.", variant: "destructive" });
     } catch (error) {
@@ -100,6 +118,10 @@ export default function InvoicesPage() {
 
   const handleViewInvoice = (invoiceId: string) => {
     router.push(`/invoices/${invoiceId}`);
+  };
+  
+  const handleEditInvoice = (invoiceId: string) => {
+    router.push(`/invoices/${invoiceId}/edit`);
   };
 
   const filteredInvoices = invoices.filter(invoice =>
@@ -116,7 +138,7 @@ export default function InvoicesPage() {
           description="Manage all your business invoices."
           actions={
             <Link href="/invoices/new" passHref>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!currentUser?.businessId || isLoading}>
                 <PlusCircle className="mr-2 h-5 w-5" /> Create New Invoice
               </Button>
             </Link>
@@ -132,6 +154,7 @@ export default function InvoicesPage() {
               className="w-full pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={!currentUser?.businessId || isLoading}
             />
           </div>
         </div>
@@ -158,14 +181,13 @@ export default function InvoicesPage() {
                     <TableRow 
                       key={invoice.id} 
                       className="hover:bg-muted/50 transition-colors cursor-pointer"
-                      onClick={() => handleViewInvoice(invoice.id)}
                     >
-                      <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                      <TableCell>{invoice.customerName || "N/A"}</TableCell>
-                      <TableCell>{format(new Date(invoice.dateIssued), "dd MMM, yyyy")}</TableCell>
-                      <TableCell>{format(new Date(invoice.dueDate), "dd MMM, yyyy")}</TableCell>
-                      <TableCell>GHS {invoice.totalAmount.toFixed(2)}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-medium" onClick={() => handleViewInvoice(invoice.id)}>{invoice.invoiceNumber}</TableCell>
+                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>{invoice.customerName || "N/A"}</TableCell>
+                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>{format(new Date(invoice.dateIssued), "dd MMM, yyyy")}</TableCell>
+                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>{format(new Date(invoice.dueDate), "dd MMM, yyyy")}</TableCell>
+                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>GHS {invoice.totalAmount.toFixed(2)}</TableCell>
+                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>
                         <Badge variant={getStatusVariant(invoice.status)} className={cn(
                             invoice.status === "Paid" ? "bg-green-500/20 text-green-700 border-green-500/30" : "",
                             invoice.status === "Pending" ? "bg-yellow-500/20 text-yellow-700 border-yellow-500/30" : "",
@@ -187,7 +209,7 @@ export default function InvoicesPage() {
                           variant="ghost" 
                           size="icon" 
                           title="Edit Invoice" 
-                          onClick={(e) => { e.stopPropagation(); /* router.push(`/invoices/edit/${invoice.id}`); */ toast({ title: "Coming Soon", description: "Invoice editing will be available soon."}) }}
+                          onClick={(e) => { e.stopPropagation(); handleEditInvoice(invoice.id); }}
                         >
                             <Edit className="h-4 w-4 text-yellow-600" />
                         </Button>
@@ -206,7 +228,7 @@ export default function InvoicesPage() {
                               size="icon" 
                               title="Delete Invoice" 
                               disabled={isDeleting}
-                              onClick={(e) => e.stopPropagation()} // Prevent row click
+                              onClick={(e) => e.stopPropagation()} 
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -237,7 +259,8 @@ export default function InvoicesPage() {
                    !isLoading && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                       {invoices.length === 0 ? "No invoices yet. Create your first invoice!" : "No invoices match your search."}
+                       {!currentUser?.businessId ? "Business context not loaded. Please ensure business setup is complete." :
+                       invoices.length === 0 ? "No invoices yet. Create your first invoice!" : "No invoices match your search."}
                       </TableCell>
                     </TableRow>
                    )

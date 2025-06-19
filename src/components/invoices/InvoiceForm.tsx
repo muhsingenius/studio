@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { PlusCircle, CalendarIcon, Wand2, Save, Send, Download, Printer } from "lucide-react";
+import { PlusCircle, CalendarIcon, Wand2, Save, Send, Download, Printer, AlertTriangle } from "lucide-react";
 import LineItemInput from "./LineItemInput";
 import type { Invoice, InvoiceItem, Customer, TaxSettings, InvoiceStatus, Item } from "@/types";
 import { format } from "date-fns";
@@ -21,10 +21,11 @@ import { cn } from "@/lib/utils";
 import { generateInvoiceText, type GenerateInvoiceTextInput } from "@/ai/flows/invoice-autocompletion";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
 
 const invoiceItemSchema = z.object({
   id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)),
-  itemId: z.string().optional(), // ID of the selected item from the 'items' collection
+  itemId: z.string().optional(),
   description: z.string().min(1, "Description is required"),
   quantity: z.number().min(0.01, "Quantity must be greater than 0"),
   unitPrice: z.number().min(0.01, "Unit price must be greater than 0"),
@@ -38,20 +39,41 @@ const invoiceSchema = z.object({
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   notes: z.string().optional(),
   status: z.enum(["Pending", "Paid", "Overdue"]).default("Pending"),
+  paymentDate: z.date().optional().nullable(),
+  paymentMethod: z.string().optional().nullable(),
+  paymentReference: z.string().optional().nullable(),
   companyDetailsForAI: z.string().optional(),
   customerInformationForAI: z.string().optional(),
   optionalDataForAI: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.status === "Paid") {
+    if (!data.paymentDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Payment date is required for paid invoices.",
+        path: ["paymentDate"],
+      });
+    }
+    if (!data.paymentMethod || data.paymentMethod.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Payment method is required for paid invoices.",
+        path: ["paymentMethod"],
+      });
+    }
+  }
 });
 
 export type InvoiceFormInputs = z.infer<typeof invoiceSchema>;
 
 interface InvoiceFormProps {
-  invoice?: Invoice;
+  invoice?: Invoice; // Existing invoice for editing
   customers: Customer[];
   taxSettings: TaxSettings;
-  availableItems: Item[]; // List of all available items/products
+  availableItems: Item[];
   onSave: (data: Omit<Invoice, "id" | "createdAt">, formData: InvoiceFormInputs) => Promise<void>;
   isSaving?: boolean;
+  formMode?: "create" | "edit";
 }
 
 const generateInvoiceNumber = async () => {
@@ -65,10 +87,11 @@ const generateInvoiceNumber = async () => {
 };
 
 
-export default function InvoiceForm({ invoice, customers, taxSettings, availableItems, onSave, isSaving }: InvoiceFormProps) {
+export default function InvoiceForm({ invoice, customers, taxSettings, availableItems, onSave, isSaving, formMode = "create" }: InvoiceFormProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const { toast } = useToast();
+  const { currentUser } = useAuth(); // Get current user
 
   const defaultValues = useMemo(() => {
     const now = new Date();
@@ -82,6 +105,9 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       items: invoice?.items.map(item => ({...item})) || [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString(), itemId: undefined }],
       notes: invoice?.notes || "",
       status: invoice?.status || "Pending",
+      paymentDate: invoice?.paymentDate ? new Date(invoice.paymentDate) : null,
+      paymentMethod: invoice?.paymentMethod || null,
+      paymentReference: invoice?.paymentReference || null,
       companyDetailsForAI: "Ghana SME Tracker Inc.\nAccra, Ghana\nVAT Reg: X001234567",
       customerInformationForAI: invoice ? (customers.find(c => c.id === invoice.customerId)?.name || "") : "",
       optionalDataForAI: "",
@@ -100,14 +126,20 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
 
   const watchedItems = watch("items");
   const watchedCustomerId = watch("customerId");
+  const watchedStatus = watch("status");
+
+  const isInvoicePaid = invoice?.status === "Paid";
+  const isUserAdmin = currentUser?.role === "Admin";
+  const isFormDisabledForPaid = isInvoicePaid && !isUserAdmin;
+
 
   useEffect(() => {
-    if (!invoice && !invoiceNumber) {
+    if (formMode === "create" && !invoiceNumber) {
       generateInvoiceNumber().then(num => setInvoiceNumber(num));
     } else if (invoice?.invoiceNumber) {
       setInvoiceNumber(invoice.invoiceNumber);
     }
-  }, [invoice, invoiceNumber]);
+  }, [invoice, invoiceNumber, formMode]);
   
   useEffect(() => {
     if (watchedCustomerId) {
@@ -117,6 +149,15 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       }
     }
   }, [watchedCustomerId, customers, setValue]);
+
+  // Clear payment fields if status is not "Paid"
+  useEffect(() => {
+    if (watchedStatus !== "Paid") {
+      setValue("paymentDate", null);
+      setValue("paymentMethod", null);
+      setValue("paymentReference", null);
+    }
+  }, [watchedStatus, setValue]);
 
   const subtotal = useMemo(() => {
     return watchedItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
@@ -137,7 +178,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
   };
 
   const handleItemChange = (index: number, field: keyof InvoiceItem, value: string | number) => {
-    const currentItem = getValues(`items.${index}`); // Use getValues for current state
+    const currentItem = getValues(`items.${index}`); 
     const newItemData = { ...currentItem, [field]: value };
     
     if (field === 'quantity' || field === 'unitPrice') {
@@ -145,7 +186,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
         const unitPrice = field === 'unitPrice' ? Number(value) : currentItem.unitPrice;
         newItemData.total = quantity * unitPrice;
     }
-    update(index, newItemData as any); // `update` expects the full item
+    update(index, newItemData as any); 
   };
   
   const handleItemSelect = (index: number, selectedItemId: string | null) => {
@@ -162,13 +203,11 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
         };
         update(index, updatedItem);
       }
-    } else { // Item cleared from combobox
+    } else { 
       const clearedItem = {
         ...currentItem,
         itemId: undefined,
         description: "",
-        // unitPrice: 0, // Optionally reset price or leave as is
-        // total: 0,
       };
       update(index, clearedItem);
     }
@@ -176,6 +215,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
 
 
   const handleGenerateAIDescription = async () => {
+    if (isFormDisabledForPaid) return;
     setAiLoading(true);
     const formData = getValues();
     const purchasedProductsString = formData.items
@@ -211,8 +251,8 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       invoiceNumber: invoiceNumber || `INV-DRAFT-${Date.now()}`,
       customerId: data.customerId,
       customerName: selectedCustomer?.name,
-      items: data.items.map(item => ({ // Ensure correct item structure
-        id: item.id, // This is the line item's unique ID
+      items: data.items.map(item => ({ 
+        id: item.id, 
         itemId: item.itemId,
         description: item.description,
         quantity: item.quantity,
@@ -231,6 +271,9 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       dateIssued: data.dateIssued,
       dueDate: data.dueDate,
       notes: data.notes,
+      paymentDate: data.status === "Paid" ? data.paymentDate : undefined,
+      paymentMethod: data.status === "Paid" ? data.paymentMethod : undefined,
+      paymentReference: data.status === "Paid" ? data.paymentReference : undefined,
     };
     onSave(finalInvoiceDataToSend, data);
   };
@@ -241,14 +284,18 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
             <div>
-              <CardTitle className="font-headline text-2xl md:text-3xl">{invoice ? "Edit Invoice" : "Create New Invoice"}</CardTitle>
+              <CardTitle className="font-headline text-2xl md:text-3xl">{formMode === "edit" ? "Edit Invoice" : "Create New Invoice"}</CardTitle>
               {invoiceNumber && <p className="text-muted-foreground">Invoice #: {invoiceNumber}</p>}
             </div>
             <Controller
               name="status"
               control={control}
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  disabled={isInvoicePaid && !isUserAdmin && formMode === 'edit'} // Only admin can change status of a paid invoice
+                >
                   <SelectTrigger className="w-full md:w-[180px] mt-2 md:mt-0">
                     <SelectValue placeholder="Set status" />
                   </SelectTrigger>
@@ -261,6 +308,12 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
               )}
             />
           </div>
+          {isFormDisabledForPaid && formMode === 'edit' && (
+            <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 text-yellow-700 rounded-md text-sm flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              This invoice is marked as Paid. Only Admins can edit its details.
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-8">
           {/* Customer and Dates */}
@@ -271,7 +324,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                 name="customerId"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isFormDisabledForPaid}>
                     <SelectTrigger id="customerId" aria-invalid={errors.customerId ? "true" : "false"}>
                       <SelectValue placeholder="Select a customer" />
                     </SelectTrigger>
@@ -302,13 +355,14 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                           errors.dateIssued && "border-destructive"
                         )}
                         aria-invalid={errors.dateIssued ? "true" : "false"}
+                        disabled={isFormDisabledForPaid}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={isFormDisabledForPaid}/>
                     </PopoverContent>
                   </Popover>
                 )}
@@ -332,13 +386,14 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                           errors.dueDate && "border-destructive"
                         )}
                         aria-invalid={errors.dueDate ? "true" : "false"}
+                        disabled={isFormDisabledForPaid}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus disabled={isFormDisabledForPaid}/>
                     </PopoverContent>
                   </Popover>
                 )}
@@ -352,13 +407,14 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             <Label className="text-lg font-medium">Items</Label>
             {fields.map((field, index) => (
               <LineItemInput
-                key={field.id} // This is the key for React's list rendering
-                item={watchedItems[index]} // Pass the current item data
+                key={field.id} 
+                item={watchedItems[index]} 
                 index={index}
                 availableItems={availableItems}
-                onItemSelect={handleItemSelect} // Pass the new handler
-                onChange={handleItemChange} // Keep for quantity/price manual changes
+                onItemSelect={handleItemSelect} 
+                onChange={handleItemChange} 
                 onRemove={() => remove(index)}
+                isReadOnly={isFormDisabledForPaid}
               />
             ))}
              {errors.items && typeof errors.items === 'object' && !Array.isArray(errors.items) && (
@@ -367,10 +423,79 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             {errors.items && Array.isArray(errors.items) && errors.items.map((itemError, index) => (
               itemError && <p key={index} className="text-sm text-destructive">Error in item {index + 1}: {JSON.stringify(itemError)}</p>
             ))}
-            <Button type="button" variant="outline" onClick={handleAddItem} className="mt-2">
+            <Button type="button" variant="outline" onClick={handleAddItem} className="mt-2" disabled={isFormDisabledForPaid}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Item
             </Button>
           </div>
+
+          {/* Payment Details (conditionally shown) */}
+          {watchedStatus === "Paid" && (
+            <Card className="bg-green-50 border-green-200">
+              <CardHeader>
+                <CardTitle className="text-xl font-headline text-green-700">Payment Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="paymentDate">Payment Date *</Label>
+                  <Controller
+                    name="paymentDate"
+                    control={control}
+                    render={({ field }) => (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="paymentDate"
+                            variant="outline"
+                            className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground", errors.paymentDate && "border-destructive")}
+                            disabled={isFormDisabledForPaid}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus disabled={isFormDisabledForPaid}/>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  />
+                  {errors.paymentDate && <p className="text-sm text-destructive mt-1">{errors.paymentDate.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="paymentMethod">Payment Method *</Label>
+                  <Controller
+                    name="paymentMethod"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} defaultValue={field.value || ""} disabled={isFormDisabledForPaid}>
+                        <SelectTrigger id="paymentMethod" aria-invalid={errors.paymentMethod ? "true" : "false"}>
+                          <SelectValue placeholder="Select payment method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="Mobile Money">Mobile Money</SelectItem>
+                          <SelectItem value="Cheque">Cheque</SelectItem>
+                          <SelectItem value="Card">Card Payment</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.paymentMethod && <p className="text-sm text-destructive mt-1">{errors.paymentMethod.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="paymentReference">Payment Reference (Optional)</Label>
+                  <Input
+                    id="paymentReference"
+                    {...control.register("paymentReference")}
+                    placeholder="e.g., Transaction ID, Cheque No."
+                    disabled={isFormDisabledForPaid}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* AI Autocompletion Section */}
           <Card className="bg-secondary/20 border-dashed">
@@ -387,6 +512,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                   placeholder="e.g., Your Company Name, Address, VAT Reg No."
                   {...control.register("companyDetailsForAI")}
                   rows={3}
+                  disabled={isFormDisabledForPaid}
                 />
               </div>
               <div>
@@ -396,6 +522,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                   placeholder="Prefilled from selected customer. You can edit if needed."
                   {...control.register("customerInformationForAI")}
                   rows={3}
+                  disabled={isFormDisabledForPaid}
                 />
               </div>
                <div>
@@ -405,9 +532,10 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                   placeholder="e.g., Specific terms, project codes, bank details for payment"
                   {...control.register("optionalDataForAI")}
                   rows={2}
+                  disabled={isFormDisabledForPaid}
                 />
               </div>
-              <Button type="button" onClick={handleGenerateAIDescription} disabled={aiLoading} variant="outline" className="w-full md:w-auto">
+              <Button type="button" onClick={handleGenerateAIDescription} disabled={aiLoading || isFormDisabledForPaid} variant="outline" className="w-full md:w-auto">
                 {aiLoading ? <LoadingSpinner size={16} className="mr-2"/> : <Wand2 className="mr-2 h-4 w-4" />}
                 {aiLoading ? "Generating..." : "Generate Invoice Notes with AI"}
               </Button>
@@ -422,6 +550,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
               placeholder="Additional information, terms and conditions, or payment details..."
               {...control.register("notes")}
               rows={4}
+              disabled={isFormDisabledForPaid}
             />
           </div>
 
@@ -454,17 +583,17 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
           </div>
         </CardContent>
         <CardFooter className="flex flex-col md:flex-row justify-end gap-3 border-t pt-6">
-          <Button type="button" variant="outline" disabled={isSaving}>
+          <Button type="button" variant="outline" disabled={isSaving || isFormDisabledForPaid}>
             <Printer className="mr-2 h-4 w-4" /> Print (Placeholder)
           </Button>
-          <Button type="button" variant="outline" disabled={isSaving}>
+          <Button type="button" variant="outline" disabled={isSaving || isFormDisabledForPaid}>
             <Download className="mr-2 h-4 w-4" /> Download PDF (Placeholder)
           </Button>
-          <Button type="submit" disabled={isSaving} className="w-full md:w-auto">
+          <Button type="submit" disabled={isSaving || (formMode ==='edit' && isFormDisabledForPaid) } className="w-full md:w-auto">
             {isSaving ? <LoadingSpinner size={16} className="mr-2"/> : <Save className="mr-2 h-4 w-4" />}
-            {isSaving ? (invoice ? "Updating..." : "Saving...") : (invoice ? "Update Invoice" : "Save Invoice")}
+            {isSaving ? (formMode === "edit" ? "Updating..." : "Saving...") : (formMode === "edit" ? "Update Invoice" : "Save Invoice")}
           </Button>
-          <Button type="button" variant="default" disabled={isSaving} className="bg-accent hover:bg-accent/90 text-accent-foreground w-full md:w-auto">
+          <Button type="button" variant="default" disabled={isSaving || isFormDisabledForPaid} className="bg-accent hover:bg-accent/90 text-accent-foreground w-full md:w-auto">
             <Send className="mr-2 h-4 w-4" /> Send Invoice (Placeholder)
           </Button>
         </CardFooter>
