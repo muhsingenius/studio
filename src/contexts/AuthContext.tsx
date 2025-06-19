@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log(`AuthContext: New default profile created for UID ${fbUser.uid}.`);
           }
         } catch (error: any) {
-          console.error(`AuthContext: Error fetching user document for UID ${fbUser.uid}:`, error.message, error.code, error);
+          console.warn(`AuthContext: Error fetching user document for UID ${fbUser.uid}:`, error.message, error.code, error);
           // If Firestore fetch fails but Firebase Auth user (fbUser) exists,
           // set a basic currentUser to allow navigation and app usage with potentially limited data.
           if (fbUser) {
