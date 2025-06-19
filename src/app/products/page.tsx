@@ -13,65 +13,112 @@ import type { Product } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-// import { db } from "@/lib/firebase"; // Firestore imports will be needed later
-// import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
-
-// Placeholder data - replace with Firestore integration
-const sampleProducts: Product[] = [
-  { id: "prod1", name: "Graphic Design Service", description: "One hour of graphic design work", unitPrice: 150, createdAt: new Date() },
-  { id: "prod2", name: "Web Development Consultation", unitPrice: 250, createdAt: new Date() },
-  { id: "prod3", name: "Handcrafted Beaded Necklace", description: "Unique, locally sourced beads", unitPrice: 75, createdAt: new Date() },
-];
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import ProductForm from "@/components/products/ProductForm";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp
+} from "firebase/firestore";
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(sampleProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // Set to true when fetching data
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // useEffect(() => {
-  //   setIsLoading(true);
-  //   // const productsCollectionRef = collection(db, "products");
-  //   // const unsubscribe = onSnapshot(productsCollectionRef, (snapshot) => {
-  //   //   const productsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-  //   //   setProducts(productsData);
-  //   //   setIsLoading(false);
-  //   // }, (error) => {
-  //   //   console.error("Error fetching products:", error);
-  //   //   toast({ title: "Error", description: "Could not fetch products.", variant: "destructive" });
-  //   //   setIsLoading(false);
-  //   // });
-  //   // return () => unsubscribe();
-  //   // Simulate loading for now
-  //   setTimeout(() => setIsLoading(false), 500);
-  // }, [toast]);
+  useEffect(() => {
+    setIsLoading(true);
+    const productsCollectionRef = collection(db, "products");
+    const q = query(productsCollectionRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const productsData = querySnapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          ...data,
+          createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+        } as Product;
+      });
+      setProducts(productsData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching products: ", error);
+      toast({ title: "Error", description: "Could not fetch products.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   const handleAddProduct = () => {
     setSelectedProduct(null);
-    // setIsFormOpen(true); // Enable when ProductForm component is ready
-    toast({ title: "Coming Soon", description: "Adding new products will be available shortly." });
+    setIsFormOpen(true);
   };
 
   const handleEditProduct = (product: Product) => {
     setSelectedProduct(product);
-    // setIsFormOpen(true); // Enable when ProductForm component is ready
-    toast({ title: "Coming Soon", description: "Editing products will be available shortly." });
+    setIsFormOpen(true);
+  };
+
+  const handleSaveProduct = async (data: Omit<Product, "id" | "createdAt">) => {
+    setIsLoading(true);
+    try {
+      if (selectedProduct) {
+        const productDocRef = doc(db, "products", selectedProduct.id);
+        await updateDoc(productDocRef, { ...data });
+        toast({ title: "Product Updated", description: `${data.name} has been updated successfully.` });
+      } else {
+        await addDoc(collection(db, "products"), {
+          ...data,
+          createdAt: serverTimestamp(),
+        });
+        toast({ title: "Product Added", description: `${data.name} has been added successfully.` });
+      }
+      setIsFormOpen(false);
+      setSelectedProduct(null);
+    } catch (error) {
+      console.error("Error saving product: ", error);
+      toast({ title: "Error", description: "Could not save product data to Firestore.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    // setIsLoading(true);
-    // try {
-    //   // await deleteDoc(doc(db, "products", productId));
-    //   toast({ title: "Product Deleted", description: "Product has been removed.", variant: "destructive" });
-    // } catch (error) {
-    //   console.error("Error deleting product:", error);
-    //   toast({ title: "Error", description: "Could not delete product.", variant: "destructive" });
-    // } finally {
-    //   // setIsLoading(false);
-    // }
-    toast({ title: "Coming Soon", description: "Deleting products will be available shortly." });
+    setIsLoading(true);
+    try {
+      const productDocRef = doc(db, "products", productId);
+      await deleteDoc(productDocRef);
+      toast({ title: "Product Deleted", description: "The product has been deleted.", variant: "destructive" });
+    } catch (error) {
+      console.error("Error deleting product: ", error);
+      toast({ title: "Error", description: "Could not delete product from Firestore.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredProducts = products.filter(product =>
@@ -105,7 +152,7 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {isLoading && <LoadingSpinner fullPage />}
+        {isLoading && products.length === 0 && <LoadingSpinner fullPage />}
 
         <Card className="shadow-lg">
           <CardHeader>
@@ -134,9 +181,31 @@ export default function ProductsPage() {
                           <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)} title="Edit Product">
                             <Edit className="h-4 w-4 text-blue-600" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteProduct(product.id)} title="Delete Product">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" title="Delete Product">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the product "{product.name}".
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                  disabled={isLoading}
+                                >
+                                  {isLoading ? <LoadingSpinner size={16} /> : "Delete"}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </TableCell>
                       </TableRow>
                     ))
@@ -151,12 +220,12 @@ export default function ProductsPage() {
                   )}
                 </TableBody>
               </Table>
+              {isLoading && products.length > 0 && <div className="p-4 text-center"><LoadingSpinner /></div>}
             </div>
           </CardContent>
         </Card>
         
-        {/* Placeholder for ProductForm dialog */}
-        {/* <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           {isFormOpen && (
             <ProductForm
               product={selectedProduct}
@@ -164,9 +233,10 @@ export default function ProductsPage() {
               setOpen={setIsFormOpen}
             />
           )}
-        </Dialog> */}
+        </Dialog>
 
       </AuthenticatedLayout>
     </AuthGuard>
   );
 }
+
