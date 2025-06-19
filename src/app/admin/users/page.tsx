@@ -26,7 +26,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  // AlertDialogTrigger, // No longer needed here if buttons set state directly
 } from "@/components/ui/alert-dialog";
 
 export default function AdminUsersPage() {
@@ -91,14 +91,13 @@ export default function AdminUsersPage() {
     try {
       const userDocRef = doc(db, "users", userToDelete.id);
       await updateDoc(userDocRef, {
-        businessId: null, // Or deleteField() if you prefer
-        role: "Staff" // Or a more generic role, or null
+        businessId: null, 
+        role: "Staff" 
       });
-      // Note: Firebase Auth user is NOT deleted here.
-      // If using businessUsers collection, remove the entry there as well.
+      
 
       toast({ title: "User Removed", description: `${userToDelete.name || userToDelete.email} has been removed from the business.` });
-      setUserToDelete(null); // Close dialog
+      setUserToDelete(null); 
     } catch (error) {
       console.error("Error removing user from business: ", error);
       toast({ title: "Error", description: "Could not remove user from business.", variant: "destructive" });
@@ -178,7 +177,7 @@ export default function AdminUsersPage() {
                             variant={
                                 user.role === "Admin" ? "destructive" :
                                 user.role === "Accountant" ? "default" :
-                                user.role === "Sales" ? "secondary" : // Example, adjust as needed
+                                user.role === "Sales" ? "secondary" : 
                                 "outline"
                             }
                         >
@@ -189,11 +188,15 @@ export default function AdminUsersPage() {
                         <Button variant="ghost" size="icon" title="Edit User" onClick={() => handleEditUser(user.id)}>
                           <Edit className="h-4 w-4 text-blue-600" />
                         </Button>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" title="Remove User" onClick={() => confirmDeleteUser(user)} disabled={isDeleting || user.id === currentUser.id}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          title="Remove User" 
+                          onClick={() => confirmDeleteUser(user)} 
+                          disabled={isDeleting || user.id === currentUser.id}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   )) : (
@@ -209,30 +212,29 @@ export default function AdminUsersPage() {
           </CardContent>
         </Card>
 
-        {userToDelete && (
-          <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will remove {userToDelete.name || userToDelete.email} from your business. Their account will still exist, but they will lose access to this business's data. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setUserToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDeleteUser}
-                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? <LoadingSpinner size={16} /> : "Confirm Removal"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+        <AlertDialog open={!!userToDelete} onOpenChange={(open) => {if (!open) setUserToDelete(null)}}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove {userToDelete?.name || userToDelete?.email} from your business. Their account will still exist, but they will lose access to this business's data. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setUserToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteUser}
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                disabled={isDeleting}
+              >
+                {isDeleting ? <LoadingSpinner size={16} /> : "Confirm Removal"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
       </AuthenticatedLayout>
     </AuthGuard>
   );
 }
+
