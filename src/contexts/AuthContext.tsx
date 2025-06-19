@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User as FirebaseUser } from "firebase/auth";
@@ -5,7 +6,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { auth, db } from "@/lib/firebase";
 import type { User, Role } from "@/types";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { useRouter } from "next/navigation"; // Corrected import
+import { useRouter } from "next/navigation"; 
 
 interface AuthContextType {
   currentUser: User | null;
@@ -32,8 +33,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (userDocSnap.exists()) {
           setCurrentUser({ id: fbUser.uid, ...userDocSnap.data() } as User);
         } else {
-          // New user, create a default profile (e.g., 'Staff' role)
-          // This part might be handled more robustly during signup
+          // New user, create a default profile if one wasn't created during signup
+          // This scenario is less likely if signup form always creates a profile
           const newUserProfile: User = {
             id: fbUser.uid,
             email: fbUser.email,
