@@ -48,10 +48,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (error: any) {
           console.error(`AuthContext: Error fetching user document for UID ${fbUser.uid}:`, error.message, error.code, error);
-          // This is where the "client is offline" error might be caught.
-          // Setting current user to null or a specific error state might be needed
-          // depending on how you want the app to behave when profile fetch fails.
-          setCurrentUser(null); 
+          // If Firestore fetch fails but Firebase Auth user (fbUser) exists,
+          // set a basic currentUser to allow navigation and app usage with potentially limited data.
+          if (fbUser) {
+            console.warn(`AuthContext: User profile for UID ${fbUser.uid} could not be fetched from Firestore due to error. Using basic profile from Auth state.`);
+            setCurrentUser({
+              id: fbUser.uid,
+              email: fbUser.email,
+              name: fbUser.displayName || fbUser.email, // Use email as fallback for name
+              role: "Staff", // Default role if profile is inaccessible
+            });
+          } else {
+            // This case should be rare if fbUser was initially present, but as a fallback:
+            setCurrentUser(null); 
+          }
         }
       } else {
         setCurrentUser(null);
@@ -72,7 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setFirebaseUser(null);
       console.log("AuthContext: Logout successful. Redirecting to /login.");
       router.push("/login"); // Redirect to login after logout
-    } catch (error: any) {
+    } catch (error: any)      {
       console.error("AuthContext: Error logging out:", error.message, error.code, error);
       // Handle logout error (e.g., show a toast)
     } finally {
@@ -97,3 +107,4 @@ export const useAuth = () => {
   }
   return context;
 };
+
