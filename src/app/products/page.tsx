@@ -13,7 +13,7 @@ import type { Product } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog"; // Removed DialogTrigger as it's not directly used
 import ProductForm from "@/components/products/ProductForm";
 import {
   AlertDialog,
@@ -46,6 +46,8 @@ export default function ProductsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false); // Added for save operation loading
+  const [isDeleting, setIsDeleting] = useState(false); // Added for delete operation loading
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function ProductsPage() {
         return {
           id: docSnapshot.id,
           ...data,
+          quantityInStock: data.quantityInStock || 0, // Ensure default if not present
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
         } as Product;
       });
@@ -84,7 +87,7 @@ export default function ProductsPage() {
   };
 
   const handleSaveProduct = async (data: Omit<Product, "id" | "createdAt">) => {
-    setIsLoading(true);
+    setIsSaving(true);
     try {
       if (selectedProduct) {
         const productDocRef = doc(db, "products", selectedProduct.id);
@@ -103,12 +106,12 @@ export default function ProductsPage() {
       console.error("Error saving product: ", error);
       toast({ title: "Error", description: "Could not save product data to Firestore.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    setIsLoading(true);
+    setIsDeleting(true);
     try {
       const productDocRef = doc(db, "products", productId);
       await deleteDoc(productDocRef);
@@ -117,7 +120,7 @@ export default function ProductsPage() {
       console.error("Error deleting product: ", error);
       toast({ title: "Error", description: "Could not delete product from Firestore.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -133,7 +136,7 @@ export default function ProductsPage() {
           title="Products & Services"
           description="Manage your inventory of products and services."
           actions={
-            <Button onClick={handleAddProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button onClick={handleAddProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isSaving}>
               <PlusCircle className="mr-2 h-5 w-5" /> Add New Product/Service
             </Button>
           }
@@ -167,6 +170,7 @@ export default function ProductsPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead className="text-right">Unit Price (GHS)</TableHead>
+                    <TableHead className="text-right">Qty in Stock</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -177,13 +181,14 @@ export default function ProductsPage() {
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{product.description || "N/A"}</TableCell>
                         <TableCell className="text-right">{product.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{product.quantityInStock}</TableCell>
                         <TableCell className="text-right space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)} title="Edit Product">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)} title="Edit Product" disabled={isSaving || isDeleting}>
                             <Edit className="h-4 w-4 text-blue-600" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" title="Delete Product">
+                              <Button variant="ghost" size="icon" title="Delete Product" disabled={isSaving || isDeleting}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </AlertDialogTrigger>
@@ -195,13 +200,13 @@ export default function ProductsPage() {
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => handleDeleteProduct(product.id)}
                                   className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                  disabled={isLoading}
+                                  disabled={isDeleting}
                                 >
-                                  {isLoading ? <LoadingSpinner size={16} /> : "Delete"}
+                                  {isDeleting ? <LoadingSpinner size={16} /> : "Delete"}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -212,7 +217,7 @@ export default function ProductsPage() {
                   ) : (
                     !isLoading && (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                           {products.length === 0 ? "No products yet. Add your first product!" : "No products match your search."}
                         </TableCell>
                       </TableRow>
@@ -239,4 +244,3 @@ export default function ProductsPage() {
     </AuthGuard>
   );
 }
-

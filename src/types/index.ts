@@ -22,6 +22,7 @@ export interface Product {
   name: string;
   description?: string;
   unitPrice: number;
+  quantityInStock: number; // Added for stock management
   createdAt: Date;
 }
 

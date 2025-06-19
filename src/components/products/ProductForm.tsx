@@ -17,6 +17,7 @@ const productSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   description: z.string().optional(),
   unitPrice: z.coerce.number().positive({ message: "Unit price must be a positive number" }),
+  quantityInStock: z.coerce.number().min(0, { message: "Quantity must be a non-negative number" }),
 });
 
 type ProductFormInputs = z.infer<typeof productSchema>;
@@ -35,10 +36,12 @@ export default function ProductForm({ product, onSave, setOpen }: ProductFormPro
       name: product.name,
       description: product.description || "",
       unitPrice: product.unitPrice,
+      quantityInStock: product.quantityInStock || 0,
     } : {
       name: "",
       description: "",
       unitPrice: 0,
+      quantityInStock: 0,
     },
   });
 
@@ -70,6 +73,11 @@ export default function ProductForm({ product, onSave, setOpen }: ProductFormPro
           <Input id="unitPrice" type="number" step="0.01" {...register("unitPrice")} aria-invalid={errors.unitPrice ? "true" : "false"} />
           {errors.unitPrice && <p className="text-sm text-destructive mt-1">{errors.unitPrice.message}</p>}
         </div>
+        <div>
+          <Label htmlFor="quantityInStock">Quantity in Stock</Label>
+          <Input id="quantityInStock" type="number" step="1" {...register("quantityInStock")} aria-invalid={errors.quantityInStock ? "true" : "false"} />
+          {errors.quantityInStock && <p className="text-sm text-destructive mt-1">{errors.quantityInStock.message}</p>}
+        </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline" disabled={loading}>Cancel</Button>
@@ -83,4 +91,3 @@ export default function ProductForm({ product, onSave, setOpen }: ProductFormPro
     </DialogContent>
   );
 }
-
