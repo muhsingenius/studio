@@ -1,57 +1,75 @@
+
 "use client";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
-import type { InvoiceItem } from "@/types";
+import type { InvoiceItem, Item as ProductItem } from "@/types"; // Renamed Item to ProductItem to avoid conflict
 import { useEffect } from "react";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox"; // Import the new Combobox
 
 interface LineItemInputProps {
   item: InvoiceItem;
   index: number;
+  availableItems: ProductItem[];
+  onItemSelect: (index: number, itemId: string | null) => void;
   onChange: (index: number, field: keyof InvoiceItem, value: string | number) => void;
   onRemove: (index: number) => void;
   isReadOnly?: boolean;
 }
 
-export default function LineItemInput({ item, index, onChange, onRemove, isReadOnly = false }: LineItemInputProps) {
+export default function LineItemInput({ 
+  item, 
+  index, 
+  availableItems,
+  onItemSelect,
+  onChange, 
+  onRemove, 
+  isReadOnly = false 
+}: LineItemInputProps) {
   
-  const handleInputChange = (field: keyof InvoiceItem, value: string) => {
-    if (field === "quantity" || field === "unitPrice") {
-      const numValue = parseFloat(value);
-      onChange(index, field, isNaN(numValue) ? 0 : numValue);
-    } else {
-      onChange(index, field, value);
-    }
+  const handleNumericInputChange = (field: 'quantity' | 'unitPrice', value: string) => {
+    const numValue = parseFloat(value);
+    onChange(index, field, isNaN(numValue) ? 0 : numValue);
   };
 
-  // Auto-calculate total when quantity or unitPrice changes
+  const comboboxOptions: ComboboxOption[] = availableItems.map(product => ({
+    value: product.id,
+    label: product.name,
+  }));
+
+  // Auto-calculate total when quantity or unitPrice changes via direct input
   useEffect(() => {
-    const newTotal = item.quantity * item.unitPrice;
-    if (item.total !== newTotal) {
-      onChange(index, "total", newTotal);
+    if (!item.itemId) { // Only auto-calculate if not linked to a selected item, or allow override
+        const newTotal = item.quantity * item.unitPrice;
+        if (item.total !== newTotal) {
+          onChange(index, "total", newTotal);
+        }
     }
-  }, [item.quantity, item.unitPrice, item.total, index, onChange]);
+    // If item.itemId is set, total is calculated in InvoiceForm's handleItemSelect or when quantity changes
+  }, [item.quantity, item.unitPrice, item.itemId, item.total, index, onChange]);
 
 
   return (
     <div className="grid grid-cols-12 gap-2 items-center mb-2 p-2 border rounded-md bg-secondary/30">
       <div className="col-span-12 md:col-span-5">
-        <Input
-          type="text"
-          placeholder="Item description"
-          value={item.description}
-          onChange={(e) => handleInputChange("description", e.target.value)}
-          readOnly={isReadOnly}
-          aria-label={`Item ${index + 1} description`}
+        <Combobox
+          options={comboboxOptions}
+          value={item.itemId}
+          onChange={(selectedItemId) => onItemSelect(index, selectedItemId)}
+          placeholder="Select or type item..."
+          searchPlaceholder="Search items..."
+          notFoundText="No item found."
+          disabled={isReadOnly}
+          className={isReadOnly ? "bg-muted" : ""}
         />
       </div>
       <div className="col-span-4 md:col-span-2">
         <Input
           type="number"
           placeholder="Qty"
-          value={item.quantity === 0 && !isReadOnly ? "" : item.quantity.toString()} // Show empty for 0 when editable
-          onChange={(e) => handleInputChange("quantity", e.target.value)}
+          value={item.quantity === 0 && !isReadOnly ? "" : item.quantity.toString()}
+          onChange={(e) => handleNumericInputChange("quantity", e.target.value)}
           min="0"
           step="any"
           readOnly={isReadOnly}
@@ -63,7 +81,7 @@ export default function LineItemInput({ item, index, onChange, onRemove, isReadO
           type="number"
           placeholder="Price"
           value={item.unitPrice === 0 && !isReadOnly ? "" : item.unitPrice.toString()}
-          onChange={(e) => handleInputChange("unitPrice", e.target.value)}
+          onChange={(e) => handleNumericInputChange("unitPrice", e.target.value)}
           min="0"
           step="0.01"
           readOnly={isReadOnly}

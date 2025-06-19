@@ -6,7 +6,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import InvoiceForm, { type InvoiceFormInputs } from "@/components/invoices/InvoiceForm";
-import type { Customer, TaxSettings, Invoice } from "@/types";
+import type { Customer, TaxSettings, Invoice, Item } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -34,6 +34,7 @@ const defaultTaxSettings: TaxSettings = {
 export default function NewInvoicePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
+  const [availableItems, setAvailableItems] = useState<Item[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -63,14 +64,26 @@ export default function NewInvoicePage() {
           console.warn("Tax settings not found in Firestore, using default values.");
           setTaxSettings(defaultTaxSettings);
         }
+
+        // Fetch items
+        const itemsCollectionRef = collection(db, "items");
+        const itemsQuery = query(itemsCollectionRef, orderBy("name", "asc"));
+        const itemsSnapshot = await getDocs(itemsQuery);
+        const itemsData = itemsSnapshot.docs.map(docSnapshot => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+          createdAt: (docSnapshot.data().createdAt as Timestamp)?.toDate ? (docSnapshot.data().createdAt as Timestamp).toDate() : new Date(),
+          updatedAt: (docSnapshot.data().updatedAt as Timestamp)?.toDate ? (docSnapshot.data().updatedAt as Timestamp).toDate() : undefined,
+        } as Item));
+        setAvailableItems(itemsData);
+
       } catch (error) {
         console.error("Error fetching initial data for new invoice: ", error);
         toast({
           title: "Error Loading Data",
-          description: "Could not load customer or tax data. Please try again.",
+          description: "Could not load customer, tax, or item data. Please try again.",
           variant: "destructive",
         });
-        // Fallback to default tax settings if fetch fails
         if (!taxSettings) {
           setTaxSettings(defaultTaxSettings);
         }
@@ -79,7 +92,7 @@ export default function NewInvoicePage() {
       }
     };
     fetchData();
-  }, [toast]); // Removed taxSettings from dependency array to avoid re-fetch loop if it's set to default
+  }, [toast]);
 
   const handleSaveInvoice = async (invoicePayload: Omit<Invoice, "id" | "createdAt">, _formData: InvoiceFormInputs) => {
     setIsSaving(true);
@@ -125,7 +138,8 @@ export default function NewInvoicePage() {
         />
         <InvoiceForm
           customers={customers}
-          taxSettings={taxSettings} // taxSettings is now guaranteed to be non-null here
+          taxSettings={taxSettings}
+          availableItems={availableItems}
           onSave={handleSaveInvoice}
           isSaving={isSaving}
         />
@@ -133,5 +147,3 @@ export default function NewInvoicePage() {
     </AuthGuard>
   );
 }
-
-    

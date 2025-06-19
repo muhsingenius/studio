@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PlusCircle, CalendarIcon, Wand2, Save, Send, Download, Printer } from "lucide-react";
 import LineItemInput from "./LineItemInput";
-import type { Invoice, InvoiceItem, Customer, TaxSettings, InvoiceStatus } from "@/types";
+import type { Invoice, InvoiceItem, Customer, TaxSettings, InvoiceStatus, Item } from "@/types";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { generateInvoiceText, type GenerateInvoiceTextInput } from "@/ai/flows/invoice-autocompletion";
@@ -23,7 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
 const invoiceItemSchema = z.object({
-  id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)), // Auto-generate ID for items
+  id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)),
+  itemId: z.string().optional(), // ID of the selected item from the 'items' collection
   description: z.string().min(1, "Description is required"),
   quantity: z.number().min(0.01, "Quantity must be greater than 0"),
   unitPrice: z.number().min(0.01, "Unit price must be greater than 0"),
@@ -45,9 +46,10 @@ const invoiceSchema = z.object({
 export type InvoiceFormInputs = z.infer<typeof invoiceSchema>;
 
 interface InvoiceFormProps {
-  invoice?: Invoice; // For editing, not used in this "new invoice" flow for ID/createdAt
+  invoice?: Invoice;
   customers: Customer[];
   taxSettings: TaxSettings;
+  availableItems: Item[]; // List of all available items/products
   onSave: (data: Omit<Invoice, "id" | "createdAt">, formData: InvoiceFormInputs) => Promise<void>;
   isSaving?: boolean;
 }
@@ -63,7 +65,7 @@ const generateInvoiceNumber = async () => {
 };
 
 
-export default function InvoiceForm({ invoice, customers, taxSettings, onSave, isSaving }: InvoiceFormProps) {
+export default function InvoiceForm({ invoice, customers, taxSettings, availableItems, onSave, isSaving }: InvoiceFormProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const { toast } = useToast();
@@ -73,13 +75,11 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
     const dueDate = new Date(now);
     dueDate.setDate(now.getDate() + 30);
 
-    // For a new invoice, 'invoice' prop will be undefined.
-    // If 'invoice' prop is provided (for editing), its id and createdAt are handled by the parent page.
     return {
       customerId: invoice?.customerId || "",
       dateIssued: invoice ? new Date(invoice.dateIssued) : now,
       dueDate: invoice ? new Date(invoice.dueDate) : dueDate,
-      items: invoice?.items.map(item => ({...item})) || [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString() }],
+      items: invoice?.items.map(item => ({...item})) || [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString(), itemId: undefined }],
       notes: invoice?.notes || "",
       status: invoice?.status || "Pending",
       companyDetailsForAI: "Ghana SME Tracker Inc.\nAccra, Ghana\nVAT Reg: X001234567",
@@ -102,14 +102,8 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
   const watchedCustomerId = watch("customerId");
 
   useEffect(() => {
-    // Only generate a new invoice number if one isn't already set (e.g. for a new form)
-    // and not when editing (though `invoice` prop handles edit case for invoiceNumber display)
     if (!invoice && !invoiceNumber) {
-      generateInvoiceNumber().then(num => {
-        setInvoiceNumber(num);
-        // If editing, parent page passes invoice.invoiceNumber.
-        // Invoice number is part of data passed to onSave, not managed by Invoice object's id.
-      });
+      generateInvoiceNumber().then(num => setInvoiceNumber(num));
     } else if (invoice?.invoiceNumber) {
       setInvoiceNumber(invoice.invoiceNumber);
     }
@@ -139,19 +133,47 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
   const totalAmount = subtotal + taxAmounts.totalTax;
 
   const handleAddItem = () => {
-    append({ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString() + Math.random().toString(36).substring(2,7) });
+    append({ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString() + Math.random().toString(36).substring(2,7), itemId: undefined });
   };
 
   const handleItemChange = (index: number, field: keyof InvoiceItem, value: string | number) => {
-    const currentItem = fields[index];
-    const newItem = { ...currentItem, [field]: value };
+    const currentItem = getValues(`items.${index}`); // Use getValues for current state
+    const newItemData = { ...currentItem, [field]: value };
     
     if (field === 'quantity' || field === 'unitPrice') {
-        newItem.total = (field === 'quantity' ? Number(value) : currentItem.quantity) * 
-                        (field === 'unitPrice' ? Number(value) : currentItem.unitPrice);
+        const quantity = field === 'quantity' ? Number(value) : currentItem.quantity;
+        const unitPrice = field === 'unitPrice' ? Number(value) : currentItem.unitPrice;
+        newItemData.total = quantity * unitPrice;
     }
-    update(index, newItem as any);
+    update(index, newItemData as any); // `update` expects the full item
   };
+  
+  const handleItemSelect = (index: number, selectedItemId: string | null) => {
+    const currentItem = getValues(`items.${index}`);
+    if (selectedItemId) {
+      const selectedFullItem = availableItems.find(item => item.id === selectedItemId);
+      if (selectedFullItem) {
+        const updatedItem = {
+          ...currentItem,
+          itemId: selectedFullItem.id,
+          description: selectedFullItem.name,
+          unitPrice: selectedFullItem.sellingPrice,
+          total: currentItem.quantity * selectedFullItem.sellingPrice,
+        };
+        update(index, updatedItem);
+      }
+    } else { // Item cleared from combobox
+      const clearedItem = {
+        ...currentItem,
+        itemId: undefined,
+        description: "",
+        // unitPrice: 0, // Optionally reset price or leave as is
+        // total: 0,
+      };
+      update(index, clearedItem);
+    }
+  };
+
 
   const handleGenerateAIDescription = async () => {
     setAiLoading(true);
@@ -186,11 +208,17 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
   const processSubmit: SubmitHandler<InvoiceFormInputs> = (data) => {
     const selectedCustomer = customers.find(c => c.id === data.customerId);
     const finalInvoiceDataToSend: Omit<Invoice, "id" | "createdAt"> = {
-      // id and createdAt will be handled by Firestore / parent page
-      invoiceNumber: invoiceNumber || `INV-DRAFT-${Date.now()}`, // Ensure invoiceNumber is set
+      invoiceNumber: invoiceNumber || `INV-DRAFT-${Date.now()}`,
       customerId: data.customerId,
-      customerName: selectedCustomer?.name, // Include customerName
-      items: data.items,
+      customerName: selectedCustomer?.name,
+      items: data.items.map(item => ({ // Ensure correct item structure
+        id: item.id, // This is the line item's unique ID
+        itemId: item.itemId,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.total,
+      })),
       subtotal: subtotal,
       taxDetails: {
         vatRate: taxSettings.vat,
@@ -203,7 +231,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
       dateIssued: data.dateIssued,
       dueDate: data.dueDate,
       notes: data.notes,
-      // pdfUrl is optional, not set here
     };
     onSave(finalInvoiceDataToSend, data);
   };
@@ -325,10 +352,12 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
             <Label className="text-lg font-medium">Items</Label>
             {fields.map((field, index) => (
               <LineItemInput
-                key={field.id}
-                item={watchedItems[index]}
+                key={field.id} // This is the key for React's list rendering
+                item={watchedItems[index]} // Pass the current item data
                 index={index}
-                onChange={handleItemChange}
+                availableItems={availableItems}
+                onItemSelect={handleItemSelect} // Pass the new handler
+                onChange={handleItemChange} // Keep for quantity/price manual changes
                 onRemove={() => remove(index)}
               />
             ))}
@@ -443,5 +472,3 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
     </form>
   );
 }
-
-    
