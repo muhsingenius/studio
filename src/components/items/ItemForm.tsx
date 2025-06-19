@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import type { Item, ItemType } from "@/types";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -39,19 +39,18 @@ const itemSchema = z.object({
   reorderLevel: z.coerce.number().nonnegative("Reorder level must be non-negative").optional().or(z.literal("")),
   warehouse: z.string().optional(),
   batchOrSerialNo: z.string().optional(),
-  taxCode: z.string().optional(), // Placeholder
+  taxCode: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if ((data.trackInventory || data.type === 'inventory') && (data.quantityOnHand === undefined || data.quantityOnHand === "" || Number(data.quantityOnHand) < 0)) {
+  if (data.type === 'inventory' && data.trackInventory && (data.quantityOnHand === undefined || data.quantityOnHand === "" || Number(data.quantityOnHand) < 0)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Quantity on hand is required and must be non-negative if tracking inventory or item type is 'inventory'.",
+      message: "Quantity on hand is required and must be non-negative for tracked inventory items.",
       path: ["quantityOnHand"],
     });
   }
   if (data.costPrice === "") data.costPrice = undefined;
   if (data.quantityOnHand === "") data.quantityOnHand = undefined;
   if (data.reorderLevel === "") data.reorderLevel = undefined;
-
 });
 
 
@@ -65,13 +64,14 @@ interface ItemFormProps {
 }
 
 export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormProps) {
-  const { control, register, handleSubmit, watch, formState: { errors }, setValue } = useForm<ItemFormInputs>({
+  const { control, register, handleSubmit, watch, formState: { errors }, setValue, getValues } = useForm<ItemFormInputs>({
     resolver: zodResolver(itemSchema),
     defaultValues: item ? {
       ...item,
       costPrice: item.costPrice ?? "",
       quantityOnHand: item.quantityOnHand ?? "",
       reorderLevel: item.reorderLevel ?? "",
+      trackInventory: item.type === 'inventory' ? (item.trackInventory !== undefined ? item.trackInventory : true) : false,
     } : {
       type: "inventory",
       name: "",
@@ -81,7 +81,7 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
       sellingPrice: 0,
       costPrice: "",
       unit: "",
-      trackInventory: false,
+      trackInventory: true, // Default to true if type is 'inventory' (which is the default type)
       isActive: true,
       quantityOnHand: "",
       reorderLevel: "",
@@ -94,21 +94,45 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
   const watchedTrackInventory = watch("trackInventory");
   const watchedType = watch("type");
 
-  const showInventoryFields = watchedTrackInventory || watchedType === 'inventory';
+  useEffect(() => {
+    if (watchedType === 'inventory') {
+      // If type is inventory, and trackInventory is currently false in the form, set it to true.
+      // This handles changing type TO inventory, or initial load for new inventory item.
+      if (getValues('trackInventory') === false) {
+          setValue('trackInventory', true);
+      }
+    } else {
+      // If type is not inventory, always set trackInventory to false.
+      setValue('trackInventory', false);
+    }
+  }, [watchedType, setValue, getValues]);
+
+  const showTrackInventoryToggle = watchedType === 'inventory';
+  const showInventoryFields = watchedType === 'inventory' && watchedTrackInventory;
 
   const onSubmit: SubmitHandler<ItemFormInputs> = async (data) => {
-    const dataToSave = {
-      ...data,
-      costPrice: data.costPrice ? Number(data.costPrice) : undefined,
-      quantityOnHand: (showInventoryFields && data.quantityOnHand !== undefined && data.quantityOnHand !== "") ? Number(data.quantityOnHand) : undefined,
-      reorderLevel: (showInventoryFields && data.reorderLevel !== undefined && data.reorderLevel !== "") ? Number(data.reorderLevel) : undefined,
+    const dataToSave: any = {
+        ...data,
+        trackInventory: data.type === 'inventory' ? data.trackInventory : false, // Ensure trackInventory is false if not 'inventory' type
+        costPrice: data.costPrice ? Number(data.costPrice) : undefined,
+        quantityOnHand: (data.type === 'inventory' && data.trackInventory && data.quantityOnHand !== undefined && data.quantityOnHand !== "") ? Number(data.quantityOnHand) : undefined,
+        reorderLevel: (data.type === 'inventory' && data.trackInventory && data.reorderLevel !== undefined && data.reorderLevel !== "") ? Number(data.reorderLevel) : undefined,
     };
     
-    if (!showInventoryFields) {
-        delete (dataToSave as any).quantityOnHand;
-        delete (dataToSave as any).reorderLevel;
-        delete (dataToSave as any).warehouse;
-        delete (dataToSave as any).batchOrSerialNo;
+    Object.keys(dataToSave).forEach(key => {
+        const typedKey = key as keyof typeof dataToSave;
+        if (dataToSave[typedKey] === "" && 
+            (key === 'sku' || key === 'description' || key === 'category' || key === 'costPrice' || key === 'unit' ||
+             key === 'reorderLevel' || key === 'warehouse' || key === 'batchOrSerialNo' || key === 'taxCode' || key === 'quantityOnHand')) {
+            delete dataToSave[typedKey];
+        }
+    });
+    
+    if (dataToSave.type !== 'inventory' || !dataToSave.trackInventory) {
+        delete dataToSave.quantityOnHand;
+        delete dataToSave.reorderLevel;
+        delete dataToSave.warehouse;
+        delete dataToSave.batchOrSerialNo;
     }
 
     await onSave(dataToSave as Omit<Item, "id" | "createdAt" | "updatedAt">);
@@ -191,20 +215,23 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center pt-2">
-            <div className="flex items-center space-x-2">
-              <Controller
-                name="trackInventory"
-                control={control}
-                render={({ field }) => (
-                    <Switch
-                        id="trackInventory"
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                    />
-                )}
-              />
-              <Label htmlFor="trackInventory" className="cursor-pointer">Track Inventory</Label>
-            </div>
+            {showTrackInventoryToggle ? (
+              <div className="flex items-center space-x-2">
+                <Controller
+                  name="trackInventory"
+                  control={control}
+                  render={({ field }) => (
+                      <Switch
+                          id="trackInventory"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                      />
+                  )}
+                />
+                <Label htmlFor="trackInventory" className="cursor-pointer">Track Inventory</Label>
+              </div>
+            ) : <div />} {/* Empty div to maintain grid structure if toggle is hidden */}
+            
             <div className="flex items-center space-x-2">
               <Controller
                   name="isActive"
