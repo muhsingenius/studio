@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from "react";
@@ -12,8 +13,15 @@ export default function HomePage() {
   useEffect(() => {
     if (!loading) {
       if (currentUser) {
-        router.replace("/dashboard");
+        if (!currentUser.businessId) {
+          // If user is logged in but has no businessId, redirect to create business
+          router.replace("/onboarding/create-business");
+        } else {
+          // If user has businessId, proceed to dashboard
+          router.replace("/dashboard");
+        }
       } else {
+        // If no user, redirect to login
         router.replace("/login");
       }
     }

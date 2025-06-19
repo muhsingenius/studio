@@ -1,4 +1,5 @@
 
+
 export type Role = "Admin" | "Accountant" | "Staff";
 
 export interface User {
@@ -6,6 +7,7 @@ export interface User {
   email: string | null;
   name?: string | null;
   role: Role;
+  businessId?: string; // Added to link user to a business
 }
 
 export interface Customer {
@@ -15,6 +17,7 @@ export interface Customer {
   email?: string;
   location: string;
   createdAt: Date;
+  businessId?: string; // Optional: To scope customers to a business
 }
 
 export type ItemType = 'inventory' | 'non-inventory' | 'service' | 'digital' | 'bundle';
@@ -25,19 +28,20 @@ export interface Item {
   name: string;
   sku?: string;
   description?: string;
-  category?: string; // For simplicity, a string. Could be an ID linking to a categories collection.
+  category?: string;
   sellingPrice: number;
   costPrice?: number;
-  unit?: string; // e.g., pcs, kg, hour
+  unit?: string;
   trackInventory: boolean;
   isActive: boolean;
-  quantityOnHand?: number; // Required if trackInventory is true or type is 'inventory'
+  quantityOnHand?: number;
   reorderLevel?: number;
   warehouse?: string;
   batchOrSerialNo?: string;
-  taxCode?: string; // Placeholder for future tax integration
+  taxCode?: string;
   createdAt: Date;
-  updatedAt?: Date; // Optional: to track updates
+  updatedAt?: Date;
+  businessId?: string; // Optional: To scope items to a business
 }
 
 export interface InvoiceItem {
@@ -46,7 +50,7 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   total: number;
-  itemId?: string; // Optional: to link back to an Item
+  itemId?: string;
 }
 
 export type InvoiceStatus = "Pending" | "Paid" | "Overdue";
@@ -74,6 +78,7 @@ export interface Invoice {
   notes?: string;
   pdfUrl?: string;
   createdAt: Date;
+  businessId?: string; // Optional: To scope invoices to a business
 }
 
 export interface Expense {
@@ -86,6 +91,7 @@ export interface Expense {
   paymentMethod: "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Other";
   taxType?: string;
   createdAt: Date;
+  businessId?: string; // Optional: To scope expenses to a business
 }
 
 export interface TaxRate {
@@ -101,6 +107,7 @@ export interface TaxSettings {
   nhil: number;
   getFund: number;
   customTaxes: TaxRate[];
+  businessId?: string; // To scope tax settings to a business
 }
 
 export interface Notification {
@@ -111,4 +118,26 @@ export interface Notification {
   read: boolean;
   createdAt: Date;
   link?: string;
+}
+
+// New Interfaces for Business Management
+export interface Business {
+  id: string;
+  name: string;
+  industry?: string;
+  location?: string;
+  currency?: string;
+  createdBy: string; // UID of the user who created the business
+  adminUids: string[]; // Array of UIDs of users who are admins for this business
+  createdAt: Date;
+}
+
+export interface BusinessUser {
+  // Document ID might be composite: {businessId}_{userId}
+  // Or fields:
+  userId: string;
+  businessId: string;
+  role: Role; // Role within this specific business
+  isActive: boolean;
+  joinedAt: Date;
 }
