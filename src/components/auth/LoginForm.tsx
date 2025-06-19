@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -111,12 +112,12 @@ export default function LoginForm() {
            <Link href="#" className="text-sm text-primary hover:underline">
             Forgot password?
           </Link>
-          {/* <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
+           <p className="text-sm text-muted-foreground">
+            Don&apos;t have an account?{" "}
             <Link href="/signup" className="text-primary hover:underline">
               Sign up
             </Link>
-          </p> */}
+          </p>
         </CardFooter>
       </Card>
     </div>
