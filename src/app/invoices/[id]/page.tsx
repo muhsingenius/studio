@@ -9,7 +9,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import InvoiceDetailsDisplay from "@/components/invoices/InvoiceDetailsDisplay";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Edit } from "lucide-react"; // Import Edit icon
 import type { Invoice } from "@/types";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
@@ -48,7 +48,7 @@ export default function ViewInvoicePage() {
             ...data,
             dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
             dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
-            paymentDate: data.paymentDate && (data.paymentDate as Timestamp).toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
+            paymentDate: data.paymentDate && (data.paymentDate as Timestamp)?.toDate ? (data.paymentDate as Timestamp).toDate() : undefined,
             createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
           } as Invoice;
           setInvoice(fetchedInvoice);
@@ -85,10 +85,18 @@ export default function ViewInvoicePage() {
           title={invoice ? `Invoice ${invoice.invoiceNumber}` : "View Invoice"}
           description={invoice ? `Details for invoice issued to ${invoice.customerName || 'N/A'}` : "Loading invoice details..."}
           actions={
-            <Button variant="outline" onClick={() => router.push("/invoices")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Invoices
-            </Button>
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={() => router.push("/invoices")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Invoices
+              </Button>
+              {invoice && (
+                <Button onClick={() => router.push(`/invoices/${invoice.id}/edit`)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Invoice
+                </Button>
+              )}
+            </div>
           }
         />
         {error && (
