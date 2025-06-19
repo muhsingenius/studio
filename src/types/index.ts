@@ -17,37 +17,51 @@ export interface Customer {
   createdAt: Date;
 }
 
-export interface Product {
+export type ItemType = 'inventory' | 'non-inventory' | 'service' | 'digital' | 'bundle';
+
+export interface Item {
   id: string;
+  type: ItemType;
   name: string;
+  sku?: string;
   description?: string;
-  unitPrice: number;
-  quantityInStock: number; // Added for stock management
+  category?: string; // For simplicity, a string. Could be an ID linking to a categories collection.
+  sellingPrice: number;
+  costPrice?: number;
+  unit?: string; // e.g., pcs, kg, hour
+  trackInventory: boolean;
+  isActive: boolean;
+  quantityOnHand?: number; // Required if trackInventory is true or type is 'inventory'
+  reorderLevel?: number;
+  warehouse?: string;
+  batchOrSerialNo?: string;
+  taxCode?: string; // Placeholder for future tax integration
   createdAt: Date;
+  updatedAt?: Date; // Optional: to track updates
 }
 
 export interface InvoiceItem {
-  id: string; // Can be a product ID or a unique ID for custom items
+  id: string;
   description: string;
   quantity: number;
   unitPrice: number;
   total: number;
-  productId?: string; // Optional: to link back to a Product
+  itemId?: string; // Optional: to link back to an Item
 }
 
 export type InvoiceStatus = "Pending" | "Paid" | "Overdue";
 
 export interface Invoice {
   id: string;
-  invoiceNumber: string; // Auto-generated
+  invoiceNumber: string;
   customerId: string;
-  customerName?: string; // For display convenience
+  customerName?: string;
   items: InvoiceItem[];
   subtotal: number;
   taxDetails: {
-    vatRate: number; // e.g., 0.15 for 15%
-    nhilRate: number; // e.g., 0.025 for 2.5%
-    getFundRate: number; // e.g., 0.025 for 2.5%
+    vatRate: number;
+    nhilRate: number;
+    getFundRate: number;
     vatAmount: number;
     nhilAmount: number;
     getFundAmount: number;
@@ -57,8 +71,8 @@ export interface Invoice {
   status: InvoiceStatus;
   dateIssued: Date;
   dueDate: Date;
-  notes?: string; // For AI generated text or other notes
-  pdfUrl?: string; // Link to PDF if generated
+  notes?: string;
+  pdfUrl?: string;
   createdAt: Date;
 }
 
@@ -70,22 +84,22 @@ export interface Expense {
   amount: number;
   date: Date;
   paymentMethod: "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Other";
-  taxType?: string; // e.g., "Input VAT"
+  taxType?: string;
   createdAt: Date;
 }
 
 export interface TaxRate {
-  id: string; // e.g., 'vat', 'nhil', 'getfund' or custom ID
-  name: string; // e.g., 'VAT', 'NHIL', 'GETFund Levy'
-  rate: number; // e.g., 0.15 for 15%
+  id: string;
+  name: string;
+  rate: number;
   description?: string;
-  isDefault?: boolean; // True for VAT, NHIL, GETFund
+  isDefault?: boolean;
 }
 
 export interface TaxSettings {
-  vat: number; // 0.15
-  nhil: number; // 0.025
-  getFund: number; // 0.025
+  vat: number;
+  nhil: number;
+  getFund: number;
   customTaxes: TaxRate[];
 }
 
@@ -96,5 +110,5 @@ export interface Notification {
   type: "info" | "warning" | "error";
   read: boolean;
   createdAt: Date;
-  link?: string; // Optional link to related item, e.g., overdue invoice
+  link?: string;
 }

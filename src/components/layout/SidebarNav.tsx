@@ -4,21 +4,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, ShoppingBag } from "lucide-react";
-import type { Role } from "@/types"; // Assuming Role type is defined
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package } from "lucide-react";
+import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  roles?: Role[]; // Optional roles that can see this item
+  roles?: Role[];
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/customers", label: "Customers", icon: Users },
-  { href: "/products", label: "Products", icon: ShoppingBag },
+  { href: "/items", label: "Items", icon: Package }, // Changed from Products to Items
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
@@ -31,7 +31,7 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
   const { currentUser } = useAuth();
 
   const userCanView = (itemRoles?: Role[]) => {
-    if (!itemRoles || itemRoles.length === 0) return true; // No specific roles, accessible to all
+    if (!itemRoles || itemRoles.length === 0) return true;
     if (!currentUser) return false;
     return itemRoles.includes(currentUser.role);
   };
