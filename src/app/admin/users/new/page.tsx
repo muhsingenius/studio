@@ -9,9 +9,10 @@ import UserForm, { type UserFormInputs } from "@/components/admin/users/UserForm
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db, firebaseConfig } from "@/lib/firebase"; // Import main db and firebaseConfig
+import { getAuth as getAuthInstance, createUserWithEmailAndPassword, updateProfile } from "firebase/auth"; // Renamed getAuth to avoid conflict
+import { initializeApp, deleteApp, type FirebaseApp } from "firebase/app"; // Import for temp app management
+import { doc, setDoc } from "firebase/firestore";
 import type { User } from "@/types";
 
 export default function NewUserPage() {
@@ -31,17 +32,24 @@ export default function NewUserPage() {
     }
 
     setIsSaving(true);
-    try {
-      // 1. Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const newFirebaseUser = userCredential.user;
+    let tempApp: FirebaseApp | null = null;
 
-      // 2. Update Firebase Auth profile (optional, but good for display name)
+    try {
+      // Create a unique name for the temporary app to avoid conflicts
+      const tempAppName = `tempUserCreation-${Date.now()}`;
+      tempApp = initializeApp(firebaseConfig, tempAppName);
+      const tempAuth = getAuthInstance(tempApp); // Get auth from the temporary app
+
+      // 1. Create Firebase Auth user using the temporary auth instance
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
+      const newFirebaseUser = userCredential.user; // This user is from tempAuth
+
+      // 2. Update Firebase Auth profile (using the newFirebaseUser from tempAuth)
       await updateProfile(newFirebaseUser, { displayName: data.name });
 
-      // 3. Create user document in Firestore
+      // 3. Create user document in Firestore (uses the main `db` instance)
       const newUserDoc: User = {
-        id: newFirebaseUser.uid,
+        id: newFirebaseUser.uid, // UID is universal
         name: data.name,
         email: data.email,
         role: data.role,
@@ -49,7 +57,7 @@ export default function NewUserPage() {
       };
       await setDoc(doc(db, "users", newFirebaseUser.uid), newUserDoc);
       
-      // 4. (Optional) Create businessUsers entry
+      // 4. (Optional) Create businessUsers entry (using main `db` instance)
       // const businessUserDocRef = doc(db, "businessUsers", `${currentUser.businessId}_${newFirebaseUser.uid}`);
       // await setDoc(businessUserDocRef, {
       //   userId: newFirebaseUser.uid,
@@ -63,7 +71,6 @@ export default function NewUserPage() {
       router.push("/admin/users");
     } catch (error: any) {
       console.error("Error creating user:", error);
-      // Handle Firebase specific errors like 'auth/email-already-in-use'
       let errorMessage = "Could not create user.";
       if (error.code === "auth/email-already-in-use") {
         errorMessage = "This email address is already in use by another account.";
@@ -73,17 +80,22 @@ export default function NewUserPage() {
       toast({ title: "Creation Failed", description: errorMessage, variant: "destructive" });
     } finally {
       setIsSaving(false);
+      if (tempApp) {
+        try {
+          await deleteApp(tempApp); // Clean up the temporary app
+          console.log("Temporary Firebase app for user creation deleted successfully.");
+        } catch (deleteError) {
+          console.error("Error deleting temporary Firebase app:", deleteError);
+        }
+      }
     }
   };
 
   if (currentUser?.role !== "Admin") {
-     // This should ideally be caught by AuthGuard or page level checks,
-     // but as a fallback or if AuthGuard is not specific enough for roles.
     return (
       <AuthGuard>
         <AuthenticatedLayout>
             <PageHeader title="Access Denied" description="You do not have permission to access this page."/>
-            {/* Can add a more prominent access denied message here */}
         </AuthenticatedLayout>
       </AuthGuard>
     )
