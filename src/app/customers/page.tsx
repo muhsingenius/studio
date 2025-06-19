@@ -12,7 +12,7 @@ import CustomerForm from "@/components/customers/CustomerForm";
 import type { Customer } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card"; // Added import
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -26,28 +26,52 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-
-// Placeholder data - replace with Firestore integration
-const initialCustomers: Customer[] = [
-  { id: "1", name: "Kwame Enterprise", phone: "+233 24 400 0001", email: "kwame@example.com", location: "Accra Central", createdAt: new Date() },
-  { id: "2", name: "Adoma Services Ltd", phone: "+233 55 500 0002", email: "adoma@example.com", location: "Kumasi City Mall", createdAt: new Date() },
-  { id: "3", name: "Tech Solutions Ghana", phone: "+233 20 600 0003", email: "tech@example.com", location: "Tema Community 1", createdAt: new Date() },
-];
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp
+} from "firebase/firestore";
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // For simulated async operations
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Simulate fetching customers (e.g., from Firestore)
   useEffect(() => {
-    // In a real app, you would fetch data here.
-    // e.g., const unsubscribe = onSnapshot(collection(db, "customers"), ...);
-    // return () => unsubscribe();
-  }, []);
+    setIsLoading(true);
+    const customersCollectionRef = collection(db, "customers");
+    const q = query(customersCollectionRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const customersData = querySnapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          ...data,
+          createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+        } as Customer;
+      });
+      setCustomers(customersData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching customers: ", error);
+      toast({ title: "Error", description: "Could not fetch customers.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   const handleAddCustomer = () => {
     setSelectedCustomer(null);
@@ -61,31 +85,40 @@ export default function CustomersPage() {
 
   const handleSaveCustomer = async (data: Omit<Customer, "id" | "createdAt">) => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (selectedCustomer) {
-      // Update existing customer
-      setCustomers(customers.map(c => c.id === selectedCustomer.id ? { ...selectedCustomer, ...data } : c));
-      toast({ title: "Customer Updated", description: `${data.name} has been updated successfully.` });
-    } else {
-      // Add new customer
-      const newCustomer: Customer = { ...data, id: Date.now().toString(), createdAt: new Date() };
-      setCustomers([newCustomer, ...customers]);
-      toast({ title: "Customer Added", description: `${data.name} has been added successfully.` });
+    try {
+      if (selectedCustomer) {
+        const customerDocRef = doc(db, "customers", selectedCustomer.id);
+        await updateDoc(customerDocRef, { ...data });
+        toast({ title: "Customer Updated", description: `${data.name} has been updated successfully.` });
+      } else {
+        await addDoc(collection(db, "customers"), {
+          ...data,
+          createdAt: serverTimestamp(),
+        });
+        toast({ title: "Customer Added", description: `${data.name} has been added successfully.` });
+      }
+      setIsFormOpen(false);
+      setSelectedCustomer(null);
+    } catch (error) {
+      console.error("Error saving customer: ", error);
+      toast({ title: "Error", description: "Could not save customer data to Firestore.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
-    setIsFormOpen(false);
-    setSelectedCustomer(null);
-    setIsLoading(false);
   };
 
   const handleDeleteCustomer = async (customerId: string) => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setCustomers(customers.filter(c => c.id !== customerId));
-    toast({ title: "Customer Deleted", description: "The customer has been deleted.", variant: "destructive" });
-    setIsLoading(false);
+    try {
+      const customerDocRef = doc(db, "customers", customerId);
+      await deleteDoc(customerDocRef);
+      toast({ title: "Customer Deleted", description: "The customer has been deleted.", variant: "destructive" });
+    } catch (error) {
+      console.error("Error deleting customer: ", error);
+      toast({ title: "Error", description: "Could not delete customer from Firestore.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredCustomers = customers.filter(customer =>
@@ -120,7 +153,7 @@ export default function CustomersPage() {
           </div>
         </div>
 
-        {isLoading && customers.length === 0 && <LoadingSpinner />}
+        {isLoading && customers.length === 0 && <LoadingSpinner fullPage />}
 
         <Card className="shadow-lg">
           <div className="overflow-x-auto">
@@ -135,7 +168,7 @@ export default function CustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.length > 0 ? (
+                {!isLoading && filteredCustomers.length > 0 ? (
                   filteredCustomers.map((customer) => (
                     <TableRow key={customer.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-medium">{customer.name}</TableCell>
@@ -164,6 +197,7 @@ export default function CustomersPage() {
                               <AlertDialogAction
                                 onClick={() => handleDeleteCustomer(customer.id)}
                                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                disabled={isLoading}
                               >
                                 {isLoading ? <LoadingSpinner size={16} /> : "Delete"}
                               </AlertDialogAction>
@@ -174,19 +208,21 @@ export default function CustomersPage() {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                      {customers.length === 0 ? "No customers yet. Add your first customer!" : "No customers match your search."}
-                    </TableCell>
-                  </TableRow>
+                  !isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                        {customers.length === 0 ? "No customers yet. Add your first customer!" : "No customers match your search."}
+                      </TableCell>
+                    </TableRow>
+                  )
                 )}
               </TableBody>
             </Table>
+            {isLoading && customers.length > 0 && <div className="p-4 text-center"><LoadingSpinner /></div>}
           </div>
         </Card>
 
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          {/* DialogTrigger is handled by button clicks */}
           {isFormOpen && (
             <CustomerForm
               customer={selectedCustomer}
@@ -200,3 +236,4 @@ export default function CustomersPage() {
     </AuthGuard>
   );
 }
+
