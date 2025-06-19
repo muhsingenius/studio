@@ -27,25 +27,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
-        // Fetch user profile from Firestore
+        console.log(`AuthContext: Auth state changed. User UID: ${fbUser.uid}. Attempting to fetch profile.`);
         const userDocRef = doc(db, "users", fbUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          setCurrentUser({ id: fbUser.uid, ...userDocSnap.data() } as User);
-        } else {
-          // New user, create a default profile if one wasn't created during signup
-          // This scenario is less likely if signup form always creates a profile
-          const newUserProfile: User = {
-            id: fbUser.uid,
-            email: fbUser.email,
-            name: fbUser.displayName,
-            role: "Staff", // Default role
-          };
-          await setDoc(userDocRef, newUserProfile);
-          setCurrentUser(newUserProfile);
+        try {
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setCurrentUser({ id: fbUser.uid, ...userDocSnap.data() } as User);
+            console.log(`AuthContext: User profile for UID ${fbUser.uid} fetched successfully.`);
+          } else {
+            console.warn(`AuthContext: User profile for UID ${fbUser.uid} not found in Firestore. Creating new default profile.`);
+            const newUserProfile: User = {
+              id: fbUser.uid,
+              email: fbUser.email,
+              name: fbUser.displayName,
+              role: "Staff", // Default role
+            };
+            await setDoc(userDocRef, newUserProfile);
+            setCurrentUser(newUserProfile);
+            console.log(`AuthContext: New default profile created for UID ${fbUser.uid}.`);
+          }
+        } catch (error: any) {
+          console.error(`AuthContext: Error fetching user document for UID ${fbUser.uid}:`, error.message, error.code, error);
+          // This is where the "client is offline" error might be caught.
+          // Setting current user to null or a specific error state might be needed
+          // depending on how you want the app to behave when profile fetch fails.
+          setCurrentUser(null); 
         }
       } else {
         setCurrentUser(null);
+        console.log("AuthContext: Auth state changed. No user (logged out or unauthenticated).");
       }
       setLoading(false);
     });
@@ -55,13 +65,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     setLoading(true);
+    console.log("AuthContext: Attempting to logout.");
     try {
       await auth.signOut();
       setCurrentUser(null);
       setFirebaseUser(null);
+      console.log("AuthContext: Logout successful. Redirecting to /login.");
       router.push("/login"); // Redirect to login after logout
-    } catch (error) {
-      console.error("Error logging out:", error);
+    } catch (error: any) {
+      console.error("AuthContext: Error logging out:", error.message, error.code, error);
       // Handle logout error (e.g., show a toast)
     } finally {
       setLoading(false);
