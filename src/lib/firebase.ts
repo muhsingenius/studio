@@ -5,8 +5,9 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 
 // Your web app's Firebase configuration
-// IMPORTANT: Replace with your actual Firebase project configuration.
-// It's recommended to store these in environment variables.
+// IMPORTANT: These values are read from the .env file.
+// Make sure you have a .env file in the root of your project
+// and that it contains your actual Firebase project credentials.
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -53,3 +54,4 @@ NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
 You can find these credentials in your Firebase project settings:
 Project Overview -> Project settings (gear icon) -> General tab -> Your apps -> Web app -> Firebase SDK snippet -> Config.
 */
+
