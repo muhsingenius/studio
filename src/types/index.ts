@@ -53,7 +53,7 @@ export interface InvoiceItem {
   itemId?: string;
 }
 
-export type InvoiceStatus = "Pending" | "Paid" | "Overdue" | "Partially Paid"; // Added "Partially Paid"
+export type InvoiceStatus = "Pending" | "Paid" | "Overdue" | "Partially Paid";
 
 export interface Invoice {
   id: string;
@@ -72,7 +72,7 @@ export interface Invoice {
     totalTax: number;
   };
   totalAmount: number;
-  totalPaidAmount: number; // New field
+  totalPaidAmount: number;
   status: InvoiceStatus;
   dateIssued: Date;
   dueDate: Date;
@@ -80,7 +80,6 @@ export interface Invoice {
   pdfUrl?: string;
   createdAt: Date;
   businessId?: string; 
-  // Removed: paymentDate, paymentMethod, paymentReference
 }
 
 export interface Expense {
@@ -149,9 +148,10 @@ export interface Payment {
   businessId: string; 
   amountPaid: number;
   paymentDate: Date;
-  paymentMethod: string; 
+  paymentMethod: "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Card" | "Other"; 
   paymentReference?: string; 
   notes?: string; 
-  recordedBy: string; 
-  createdAt: Date; 
+  recordedBy: string; // User ID of who recorded it
+  createdAt: Date; // Firestore server timestamp
 }
+

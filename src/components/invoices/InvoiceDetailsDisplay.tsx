@@ -1,16 +1,18 @@
 
 "use client";
 
-import type { Invoice } from "@/types";
+import type { Invoice, Payment } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Coins } from "lucide-react";
 
 interface InvoiceDetailsDisplayProps {
   invoice: Invoice;
+  payments: Payment[];
 }
 
 const getStatusVariant = (status: Invoice["status"]): "default" | "secondary" | "destructive" | "outline" => {
@@ -18,12 +20,12 @@ const getStatusVariant = (status: Invoice["status"]): "default" | "secondary" | 
     case "Paid": return "default";
     case "Pending": return "secondary";
     case "Overdue": return "destructive";
-    case "Partially Paid": return "outline"; // Example, adjust as needed
+    case "Partially Paid": return "outline";
     default: return "outline";
   }
 };
 
-export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplayProps) {
+export default function InvoiceDetailsDisplay({ invoice, payments }: InvoiceDetailsDisplayProps) {
   const {
     invoiceNumber,
     customerName,
@@ -34,11 +36,11 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
     subtotal,
     taxDetails,
     totalAmount,
-    totalPaidAmount, // Use new field
+    totalPaidAmount,
     notes,
   } = invoice;
 
-  const outstandingAmount = totalAmount - (totalPaidAmount || 0);
+  const outstandingAmount = totalAmount - totalPaidAmount;
 
   return (
     <Card className="shadow-xl w-full max-w-4xl mx-auto">
@@ -100,11 +102,40 @@ export default function InvoiceDetailsDisplay({ invoice }: InvoiceDetailsDisplay
         </div>
 
         <Separator />
-        
-        {/* Payment Information section removed as individual payments will be listed separately later */}
+
+        {payments && payments.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-3 font-headline flex items-center">
+              <Coins className="mr-2 h-5 w-5 text-primary" />
+              Payment History
+            </h3>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date Paid</TableHead>
+                    <TableHead>Amount (GHS)</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Reference</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payments.map((payment) => (
+                    <TableRow key={payment.id}>
+                      <TableCell>{format(new Date(payment.paymentDate), "PPP")}</TableCell>
+                      <TableCell className="text-right">{payment.amountPaid.toFixed(2)}</TableCell>
+                      <TableCell>{payment.paymentMethod}</TableCell>
+                      <TableCell>{payment.paymentReference || "N/A"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
 
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
           <div>
             {notes && (
               <>
