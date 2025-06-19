@@ -70,12 +70,15 @@ export default function NewUserPage() {
       toast({ title: "User Created", description: `${data.name} has been added to your business.` });
       router.push("/admin/users");
     } catch (error: any) {
-      console.error("Error creating user:", error);
+      // Removed console.error("Error creating user:", error); to prevent raw error log for handled cases
       let errorMessage = "Could not create user.";
       if (error.code === "auth/email-already-in-use") {
         errorMessage = "This email address is already in use by another account.";
       } else if (error.code === "auth/weak-password") {
         errorMessage = "The password is too weak. Please choose a stronger password.";
+      } else {
+        // Log other unexpected errors
+        console.error("Unexpected error creating user:", error);
       }
       toast({ title: "Creation Failed", description: errorMessage, variant: "destructive" });
     } finally {
