@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,58 +10,103 @@ import type { Customer, TaxSettings, Invoice } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  query,
+  orderBy,
+  Timestamp
+} from "firebase/firestore";
 
-// Placeholder data - replace with Firestore integration
-const initialCustomers: Customer[] = [
-  { id: "1", name: "Kwame Enterprise", phone: "+233 24 400 0001", email: "kwame@example.com", location: "Accra Central", createdAt: new Date() },
-  { id: "2", name: "Adoma Services Ltd", phone: "+233 55 500 0002", email: "adoma@example.com", location: "Kumasi City Mall", createdAt: new Date() },
-];
-
-const initialTaxSettings: TaxSettings = {
-  vat: 0.15, // 15%
-  nhil: 0.025, // 2.5%
-  getFund: 0.025, // 2.5%
+// Default tax settings if not found in Firestore
+const defaultTaxSettings: TaxSettings = {
+  vat: 0.15,
+  nhil: 0.025,
+  getFund: 0.025,
   customTaxes: [],
 };
 
 export default function NewInvoicePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
   useEffect(() => {
-    // Simulate fetching customers and tax settings
     const fetchData = async () => {
-      setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-      setCustomers(initialCustomers);
-      setTaxSettings(initialTaxSettings);
-      setIsLoading(false);
+      setIsLoadingData(true);
+      try {
+        // Fetch customers
+        const customersCollectionRef = collection(db, "customers");
+        const customersQuery = query(customersCollectionRef, orderBy("name", "asc"));
+        const customerSnapshot = await getDocs(customersQuery);
+        const customersData = customerSnapshot.docs.map(docSnapshot => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+          createdAt: (docSnapshot.data().createdAt as Timestamp)?.toDate ? (docSnapshot.data().createdAt as Timestamp).toDate() : new Date(),
+        } as Customer));
+        setCustomers(customersData);
+
+        // Fetch tax settings
+        const taxSettingsDocRef = doc(db, "settings", "taxConfiguration");
+        const taxSettingsSnap = await getDoc(taxSettingsDocRef);
+        if (taxSettingsSnap.exists()) {
+          setTaxSettings(taxSettingsSnap.data() as TaxSettings);
+        } else {
+          console.warn("Tax settings not found in Firestore, using default values.");
+          setTaxSettings(defaultTaxSettings);
+        }
+      } catch (error) {
+        console.error("Error fetching initial data for new invoice: ", error);
+        toast({
+          title: "Error Loading Data",
+          description: "Could not load customer or tax data. Please try again.",
+          variant: "destructive",
+        });
+        // Fallback to default tax settings if fetch fails
+        if (!taxSettings) {
+          setTaxSettings(defaultTaxSettings);
+        }
+      } finally {
+        setIsLoadingData(false);
+      }
     };
     fetchData();
-  }, []);
+  }, [toast]); // Removed taxSettings from dependency array to avoid re-fetch loop if it's set to default
 
-  const handleSaveInvoice = async (invoiceData: Invoice, _formData: InvoiceFormInputs) => {
+  const handleSaveInvoice = async (invoicePayload: Omit<Invoice, "id" | "createdAt">, _formData: InvoiceFormInputs) => {
     setIsSaving(true);
-    console.log("Saving invoice:", invoiceData);
-    // Simulate API call to save invoice
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // In a real app, you would save to Firestore here:
-    // await addDoc(collection(db, "invoices"), invoiceData);
-
-    toast({
-      title: "Invoice Created",
-      description: `Invoice ${invoiceData.invoiceNumber} has been saved successfully.`,
-    });
-    setIsSaving(false);
-    router.push("/invoices"); // Redirect to invoices list page
+    try {
+      const docToSave = {
+        ...invoicePayload,
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(collection(db, "invoices"), docToSave);
+      toast({
+        title: "Invoice Created",
+        description: `Invoice ${invoicePayload.invoiceNumber} (ID: ${docRef.id}) has been saved successfully.`,
+      });
+      router.push("/invoices");
+    } catch (error) {
+      console.error("Error saving invoice: ", error);
+      toast({
+        title: "Save Failed",
+        description: "Could not save the invoice to Firestore.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  if (isLoading || !taxSettings) {
+  if (isLoadingData || !taxSettings) {
     return (
       <AuthGuard>
         <AuthenticatedLayout>
@@ -79,7 +125,7 @@ export default function NewInvoicePage() {
         />
         <InvoiceForm
           customers={customers}
-          taxSettings={taxSettings}
+          taxSettings={taxSettings} // taxSettings is now guaranteed to be non-null here
           onSave={handleSaveInvoice}
           isSaving={isSaving}
         />
@@ -87,3 +133,5 @@ export default function NewInvoicePage() {
     </AuthGuard>
   );
 }
+
+    

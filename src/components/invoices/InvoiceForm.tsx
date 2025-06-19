@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -22,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
 const invoiceItemSchema = z.object({
-  id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)), // Auto-generate ID
+  id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)), // Auto-generate ID for items
   description: z.string().min(1, "Description is required"),
   quantity: z.number().min(0.01, "Quantity must be greater than 0"),
   unitPrice: z.number().min(0.01, "Unit price must be greater than 0"),
@@ -36,32 +37,27 @@ const invoiceSchema = z.object({
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   notes: z.string().optional(),
   status: z.enum(["Pending", "Paid", "Overdue"]).default("Pending"),
-  // Fields for AI
   companyDetailsForAI: z.string().optional(),
-  customerInformationForAI: z.string().optional(), // Will be prefilled from selected customer
+  customerInformationForAI: z.string().optional(),
   optionalDataForAI: z.string().optional(),
 });
 
 export type InvoiceFormInputs = z.infer<typeof invoiceSchema>;
 
 interface InvoiceFormProps {
-  invoice?: Invoice;
-  customers: Customer[]; // Assume customers are passed as props
-  taxSettings: TaxSettings; // Assume tax settings are passed as props
-  onSave: (data: Invoice, formData: InvoiceFormInputs) => Promise<void>;
+  invoice?: Invoice; // For editing, not used in this "new invoice" flow for ID/createdAt
+  customers: Customer[];
+  taxSettings: TaxSettings;
+  onSave: (data: Omit<Invoice, "id" | "createdAt">, formData: InvoiceFormInputs) => Promise<void>;
   isSaving?: boolean;
 }
 
-// Helper to generate next invoice number (placeholder logic)
 const generateInvoiceNumber = async () => {
-  // In a real app, this would query Firestore for the last invoice number and increment it.
-  // For example: "INV-YYYYMM-0001"
-  await new Promise(resolve => setTimeout(resolve, 200)); // simulate async
+  await new Promise(resolve => setTimeout(resolve, 200));
   const prefix = "INV";
   const date = new Date();
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  // This random part should be replaced with a sequence number from DB
   const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
   return `${prefix}-${year}${month}-${randomSuffix}`;
 };
@@ -69,37 +65,27 @@ const generateInvoiceNumber = async () => {
 
 export default function InvoiceForm({ invoice, customers, taxSettings, onSave, isSaving }: InvoiceFormProps) {
   const [aiLoading, setAiLoading] = useState(false);
-  const [invoiceNumber, setInvoiceNumber] = useState(invoice?.invoiceNumber || "");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
   const { toast } = useToast();
 
   const defaultValues = useMemo(() => {
     const now = new Date();
     const dueDate = new Date(now);
-    dueDate.setDate(now.getDate() + 30); // Default due date 30 days from now
+    dueDate.setDate(now.getDate() + 30);
 
-    return invoice
-      ? {
-          customerId: invoice.customerId,
-          dateIssued: new Date(invoice.dateIssued),
-          dueDate: new Date(invoice.dueDate),
-          items: invoice.items.map(item => ({...item})), // Ensure fresh copy for form
-          notes: invoice.notes || "",
-          status: invoice.status,
-          companyDetailsForAI: "", // Add appropriate default or fetch
-          customerInformationForAI: customers.find(c => c.id === invoice.customerId)?.name || "",
-          optionalDataForAI: "",
-        }
-      : {
-          customerId: "",
-          dateIssued: now,
-          dueDate: dueDate,
-          items: [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString() }],
-          notes: "",
-          status: "Pending" as InvoiceStatus,
-          companyDetailsForAI: "Ghana SME Tracker Inc.\nAccra, Ghana\nVAT Reg: X001234567", // Placeholder
-          customerInformationForAI: "",
-          optionalDataForAI: "",
-        };
+    // For a new invoice, 'invoice' prop will be undefined.
+    // If 'invoice' prop is provided (for editing), its id and createdAt are handled by the parent page.
+    return {
+      customerId: invoice?.customerId || "",
+      dateIssued: invoice ? new Date(invoice.dateIssued) : now,
+      dueDate: invoice ? new Date(invoice.dueDate) : dueDate,
+      items: invoice?.items.map(item => ({...item})) || [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString() }],
+      notes: invoice?.notes || "",
+      status: invoice?.status || "Pending",
+      companyDetailsForAI: "Ghana SME Tracker Inc.\nAccra, Ghana\nVAT Reg: X001234567",
+      customerInformationForAI: invoice ? (customers.find(c => c.id === invoice.customerId)?.name || "") : "",
+      optionalDataForAI: "",
+    };
   }, [invoice, customers]);
 
   const { control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<InvoiceFormInputs>({
@@ -116,8 +102,16 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
   const watchedCustomerId = watch("customerId");
 
   useEffect(() => {
+    // Only generate a new invoice number if one isn't already set (e.g. for a new form)
+    // and not when editing (though `invoice` prop handles edit case for invoiceNumber display)
     if (!invoice && !invoiceNumber) {
-      generateInvoiceNumber().then(setInvoiceNumber);
+      generateInvoiceNumber().then(num => {
+        setInvoiceNumber(num);
+        // If editing, parent page passes invoice.invoiceNumber.
+        // Invoice number is part of data passed to onSave, not managed by Invoice object's id.
+      });
+    } else if (invoice?.invoiceNumber) {
+      setInvoiceNumber(invoice.invoiceNumber);
     }
   }, [invoice, invoiceNumber]);
   
@@ -156,9 +150,8 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
         newItem.total = (field === 'quantity' ? Number(value) : currentItem.quantity) * 
                         (field === 'unitPrice' ? Number(value) : currentItem.unitPrice);
     }
-    update(index, newItem as any); // RHF update expects full item structure
+    update(index, newItem as any);
   };
-
 
   const handleGenerateAIDescription = async () => {
     setAiLoading(true);
@@ -191,10 +184,12 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
   };
 
   const processSubmit: SubmitHandler<InvoiceFormInputs> = (data) => {
-    const finalInvoiceData: Invoice = {
-      id: invoice?.id || Date.now().toString(), // Use existing ID or generate new
-      invoiceNumber: invoiceNumber || `INV-${Date.now()}`, // Use state or generate
+    const selectedCustomer = customers.find(c => c.id === data.customerId);
+    const finalInvoiceDataToSend: Omit<Invoice, "id" | "createdAt"> = {
+      // id and createdAt will be handled by Firestore / parent page
+      invoiceNumber: invoiceNumber || `INV-DRAFT-${Date.now()}`, // Ensure invoiceNumber is set
       customerId: data.customerId,
+      customerName: selectedCustomer?.name, // Include customerName
       items: data.items,
       subtotal: subtotal,
       taxDetails: {
@@ -208,9 +203,9 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
       dateIssued: data.dateIssued,
       dueDate: data.dueDate,
       notes: data.notes,
-      createdAt: invoice?.createdAt || new Date(),
+      // pdfUrl is optional, not set here
     };
-    onSave(finalInvoiceData, data);
+    onSave(finalInvoiceDataToSend, data);
   };
 
   return (
@@ -449,3 +444,4 @@ export default function InvoiceForm({ invoice, customers, taxSettings, onSave, i
   );
 }
 
+    

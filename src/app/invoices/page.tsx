@@ -11,7 +11,7 @@ import Link from "next/link";
 import type { Invoice, InvoiceStatus } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card"; // Added import
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -28,35 +28,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { cn } from "@/lib/utils";
-
-// Placeholder data - replace with Firestore integration
-const initialInvoices: Invoice[] = [
-  { 
-    id: "1", invoiceNumber: "INV-202407-0001", customerId: "1", customerName: "Kwame Enterprise",
-    items: [{ id: "i1", description: "Web Design Services", quantity: 1, unitPrice: 1200, total: 1200 }],
-    subtotal: 1200, 
-    taxDetails: { vatRate: 0.15, nhilRate: 0.025, getFundRate: 0.025, vatAmount: 180, nhilAmount: 30, getFundAmount: 30, totalTax: 240 },
-    totalAmount: 1440, status: "Paid", dateIssued: new Date("2024-07-01"), dueDate: new Date("2024-07-31"), createdAt: new Date()
-  },
-  { 
-    id: "2", invoiceNumber: "INV-202407-0002", customerId: "2", customerName: "Adoma Services Ltd",
-    items: [{ id: "i2", description: "Consulting Hours", quantity: 10, unitPrice: 150, total: 1500 }],
-    subtotal: 1500, 
-    taxDetails: { vatRate: 0.15, nhilRate: 0.025, getFundRate: 0.025, vatAmount: 225, nhilAmount: 37.5, getFundAmount: 37.5, totalTax: 300 },
-    totalAmount: 1800, status: "Pending", dateIssued: new Date("2024-07-15"), dueDate: new Date("2024-08-14"), createdAt: new Date()
-  },
-  { 
-    id: "3", invoiceNumber: "INV-202406-0001", customerId: "1", customerName: "Kwame Enterprise",
-    items: [{ id: "i3", description: "Software License", quantity: 1, unitPrice: 500, total: 500 }],
-    subtotal: 500, 
-    taxDetails: { vatRate: 0.15, nhilRate: 0.025, getFundRate: 0.025, vatAmount: 75, nhilAmount: 12.5, getFundAmount: 12.5, totalTax: 100 },
-    totalAmount: 600, status: "Overdue", dateIssued: new Date("2024-06-10"), dueDate: new Date("2024-07-10"), createdAt: new Date()
-  },
-];
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  orderBy,
+  Timestamp
+} from "firebase/firestore";
 
 const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "destructive" | "outline" => {
   switch (status) {
-    case "Paid": return "default"; // Or a success-like color, "default" is often primary
+    case "Paid": return "default";
     case "Pending": return "secondary";
     case "Overdue": return "destructive";
     default: return "outline";
@@ -64,22 +49,52 @@ const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "des
 };
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
-  // Simulate fetching invoices
   useEffect(() => {
-    // In a real app, fetch from Firestore here
-  }, []);
+    setIsLoading(true);
+    const invoicesCollectionRef = collection(db, "invoices");
+    // Consider ordering by dateIssued or createdAt in descending order
+    const q = query(invoicesCollectionRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const invoicesData = querySnapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          ...data,
+          dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
+          dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
+          createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
+        } as Invoice;
+      });
+      setInvoices(invoicesData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching invoices: ", error);
+      toast({ title: "Error", description: "Could not fetch invoices.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   const handleDeleteInvoice = async (invoiceId: string) => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-    setInvoices(invoices.filter(inv => inv.id !== invoiceId));
-    toast({ title: "Invoice Deleted", description: "The invoice has been deleted.", variant: "destructive" });
-    setIsLoading(false);
+    setIsDeleting(true);
+    try {
+      const invoiceDocRef = doc(db, "invoices", invoiceId);
+      await deleteDoc(invoiceDocRef);
+      toast({ title: "Invoice Deleted", description: "The invoice has been deleted.", variant: "destructive" });
+    } catch (error) {
+      console.error("Error deleting invoice: ", error);
+      toast({ title: "Error", description: "Could not delete invoice.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredInvoices = invoices.filter(invoice =>
@@ -116,7 +131,7 @@ export default function InvoicesPage() {
           </div>
         </div>
 
-        {isLoading && invoices.length === 0 && <LoadingSpinner />}
+        {isLoading && invoices.length === 0 && <LoadingSpinner fullPage />}
 
         <Card className="shadow-lg">
           <div className="overflow-x-auto">
@@ -133,7 +148,7 @@ export default function InvoicesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInvoices.length > 0 ? (
+                {!isLoading && filteredInvoices.length > 0 ? (
                   filteredInvoices.map((invoice) => (
                     <TableRow key={invoice.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
@@ -151,22 +166,22 @@ export default function InvoicesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right space-x-1">
-                        <Button variant="ghost" size="icon" title="View Invoice" asChild>
-                          <Link href={`/invoices/${invoice.id}`}> {/* Placeholder: View page not yet created */}
+                        <Button variant="ghost" size="icon" title="View Invoice" asChild disabled> {/* View page not yet created */}
+                          <Link href={`/invoices/${invoice.id}`}>
                              <ViewIcon className="h-4 w-4 text-blue-600" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" title="Edit Invoice" asChild>
-                           <Link href={`/invoices/edit/${invoice.id}`}> {/* Placeholder: Edit page not yet created */}
+                        <Button variant="ghost" size="icon" title="Edit Invoice" asChild disabled> {/* Edit page not yet created */}
+                           <Link href={`/invoices/edit/${invoice.id}`}>
                             <Edit className="h-4 w-4 text-yellow-600" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" title="Download PDF"> {/* Placeholder action */}
+                        <Button variant="ghost" size="icon" title="Download PDF" disabled> {/* Placeholder action */}
                             <FileDown className="h-4 w-4 text-gray-600" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Delete Invoice">
+                            <Button variant="ghost" size="icon" title="Delete Invoice" disabled={isDeleting}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </AlertDialogTrigger>
@@ -182,8 +197,9 @@ export default function InvoicesPage() {
                               <AlertDialogAction
                                 onClick={() => handleDeleteInvoice(invoice.id)}
                                 className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                disabled={isDeleting}
                               >
-                                {isLoading ? <LoadingSpinner size={16} /> : "Delete"}
+                                {isDeleting ? <LoadingSpinner size={16} /> : "Delete"}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -192,17 +208,22 @@ export default function InvoicesPage() {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                   !isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                        {invoices.length === 0 ? "No invoices yet. Create your first invoice!" : "No invoices match your search."}
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                    </TableRow>
+                   )
                 )}
               </TableBody>
             </Table>
+            {isLoading && invoices.length > 0 && <div className="p-4 text-center"><LoadingSpinner /></div>}
           </div>
         </Card>
       </AuthenticatedLayout>
     </AuthGuard>
   );
 }
+
+    
