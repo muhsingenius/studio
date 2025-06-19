@@ -271,9 +271,9 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       dateIssued: data.dateIssued,
       dueDate: data.dueDate,
       notes: data.notes,
-      paymentDate: data.status === "Paid" ? data.paymentDate : undefined,
-      paymentMethod: data.status === "Paid" ? data.paymentMethod : undefined,
-      paymentReference: data.status === "Paid" ? data.paymentReference : undefined,
+      paymentDate: data.status === "Paid" ? data.paymentDate : null,
+      paymentMethod: data.status === "Paid" ? data.paymentMethod : null,
+      paymentReference: data.status === "Paid" ? data.paymentReference : null,
     };
     onSave(finalInvoiceDataToSend, data);
   };
