@@ -6,9 +6,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
-import { Dialog } from "@/components/ui/dialog";
-import CustomerForm from "@/components/customers/CustomerForm";
+import { PlusCircle, Edit, Trash2, Search, Eye as ViewIcon } from "lucide-react";
 import type { Customer } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -29,35 +27,29 @@ import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { db } from "@/lib/firebase";
 import {
   collection,
-  addDoc,
   doc,
-  updateDoc,
   deleteDoc,
-  serverTimestamp,
   onSnapshot,
   query,
   orderBy,
   Timestamp,
   where
 } from "firebase/firestore";
-import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
-
-// Define the type for data coming from CustomerForm
-type CustomerFormInputs = Omit<Customer, "id" | "createdAt" | "businessId" | "createdBy">;
-
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-  const { currentUser } = useAuth(); // Get currentUser from AuthContext
+  const { currentUser } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (!currentUser || !currentUser.businessId) {
-      setCustomers([]); // Clear customers if no business context
+      setCustomers([]);
       setIsLoading(false);
       return;
     }
@@ -66,7 +58,7 @@ export default function CustomersPage() {
     const customersCollectionRef = collection(db, "customers");
     const q = query(
       customersCollectionRef,
-      where("businessId", "==", currentUser.businessId), // Filter by businessId
+      where("businessId", "==", currentUser.businessId),
       orderBy("createdAt", "desc")
     );
 
@@ -88,73 +80,41 @@ export default function CustomersPage() {
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching customers: ", error);
-      toast({ title: "Error", description: "Could not fetch customers.", variant: "destructive" });
-      setCustomers([]); // Clear customers on error
+      toast({ title: "Error", description: "Could not fetch customers. Ensure Firestore indexes are set up if prompted.", variant: "destructive" });
+      setCustomers([]);
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [currentUser, toast]); // Corrected dependencies: only currentUser and toast
+  }, [currentUser, toast]);
 
   const handleAddCustomer = () => {
     if (!currentUser?.businessId) {
       toast({ title: "Action Denied", description: "Business context is missing. Cannot add customer.", variant: "destructive" });
       return;
     }
-    setSelectedCustomer(null);
-    setIsFormOpen(true);
+    router.push("/customers/new");
   };
 
-  const handleEditCustomer = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setIsFormOpen(true);
+  const handleEditCustomer = (customerId: string) => {
+    router.push(`/customers/${customerId}/edit`);
   };
 
-  const handleSaveCustomer = async (data: CustomerFormInputs) => {
-    setIsLoading(true); // Consider setting a more specific saving loader if needed
-    if (!currentUser || !currentUser.businessId || !currentUser.id) {
-      toast({ title: "Error", description: "User or business context is missing. Cannot save customer.", variant: "destructive" });
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      if (selectedCustomer) {
-        const customerDocRef = doc(db, "customers", selectedCustomer.id);
-        await updateDoc(customerDocRef, { ...data }); // data only contains form fields
-        toast({ title: "Customer Updated", description: `${data.name} has been updated successfully.` });
-      } else {
-        await addDoc(collection(db, "customers"), {
-          ...data,
-          businessId: currentUser.businessId,
-          createdBy: currentUser.id,
-          createdAt: serverTimestamp(),
-        });
-        toast({ title: "Customer Added", description: `${data.name} has been added successfully.` });
-      }
-      setIsFormOpen(false);
-      setSelectedCustomer(null);
-    } catch (error) {
-      console.error("Error saving customer: ", error);
-      toast({ title: "Error", description: "Could not save customer data to Firestore.", variant: "destructive" });
-    } finally {
-      setIsLoading(false); // Ensure main page loading is false if it was set
-    }
+  const handleViewCustomer = (customerId: string) => {
+    router.push(`/customers/${customerId}`);
   };
 
   const handleDeleteCustomer = async (customerId: string) => {
-    // Consider a specific deleting loader, not the main page setIsLoading
-    // For now, this is okay as it's a quick operation.
-    // setIsLoading(true); 
+    setIsDeleting(true);
     try {
       const customerDocRef = doc(db, "customers", customerId);
       await deleteDoc(customerDocRef);
       toast({ title: "Customer Deleted", description: "The customer has been deleted.", variant: "destructive" });
     } catch (error) {
       console.error("Error deleting customer: ", error);
-      toast({ title: "Error", description: "Could not delete customer from Firestore.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not delete customer data from Firestore.", variant: "destructive" });
     } finally {
-      // setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -209,18 +169,24 @@ export default function CustomersPage() {
                 <TableBody>
                   {filteredCustomers.length > 0 ? (
                     filteredCustomers.map((customer) => (
-                      <TableRow key={customer.id} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="font-medium">{customer.name}</TableCell>
-                        <TableCell>{customer.phone}</TableCell>
-                        <TableCell>{customer.email || "N/A"}</TableCell>
-                        <TableCell>{customer.location}</TableCell>
-                        <TableCell className="text-right space-x-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditCustomer(customer)} title="Edit Customer">
+                      <TableRow 
+                        key={customer.id} 
+                        className="hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell className="font-medium" onClick={() => handleViewCustomer(customer.id)} style={{cursor: 'pointer'}}>{customer.name}</TableCell>
+                        <TableCell onClick={() => handleViewCustomer(customer.id)} style={{cursor: 'pointer'}}>{customer.phone}</TableCell>
+                        <TableCell onClick={() => handleViewCustomer(customer.id)} style={{cursor: 'pointer'}}>{customer.email || "N/A"}</TableCell>
+                        <TableCell onClick={() => handleViewCustomer(customer.id)} style={{cursor: 'pointer'}}>{customer.location}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleViewCustomer(customer.id)} title="View Customer">
+                            <ViewIcon className="h-4 w-4 text-green-600" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleEditCustomer(customer.id)} title="Edit Customer">
                             <Edit className="h-4 w-4 text-blue-600" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" title="Delete Customer">
+                              <Button variant="ghost" size="icon" title="Delete Customer" disabled={isDeleting}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </AlertDialogTrigger>
@@ -236,8 +202,9 @@ export default function CustomersPage() {
                                 <AlertDialogAction
                                   onClick={() => handleDeleteCustomer(customer.id)}
                                   className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                  disabled={isDeleting}
                                 >
-                                  Delete
+                                  {isDeleting ? <LoadingSpinner size={16} /> : "Delete"}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -258,19 +225,7 @@ export default function CustomersPage() {
             </div>
           </Card>
         )}
-
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          {isFormOpen && (
-            <CustomerForm
-              customer={selectedCustomer}
-              onSave={handleSaveCustomer}
-              setOpen={setIsFormOpen}
-            />
-          )}
-        </Dialog>
-
       </AuthenticatedLayout>
     </AuthGuard>
   );
 }
-

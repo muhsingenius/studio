@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useForm, SubmitHandler } from "react-hook-form";
@@ -7,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import type { Customer } from "@/types";
-import { useState }  from "react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
 
 const customerSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
@@ -19,19 +20,20 @@ const customerSchema = z.object({
   location: z.string().min(3, { message: "Location must be at least 3 characters" }),
 });
 
-type CustomerFormInputs = z.infer<typeof customerSchema>;
+export type CustomerFormInputs = z.infer<typeof customerSchema>;
 
 interface CustomerFormProps {
-  customer?: Customer | null;
+  initialData?: CustomerFormInputs; // Make initialData optional for create form
   onSave: (data: CustomerFormInputs) => Promise<void>;
-  setOpen: (open: boolean) => void;
+  isSaving?: boolean;
+  mode?: "create" | "edit";
 }
 
-export default function CustomerForm({ customer, onSave, setOpen }: CustomerFormProps) {
-  const [loading, setLoading] = useState(false);
+export default function CustomerForm({ initialData, onSave, isSaving, mode = "create" }: CustomerFormProps) {
+  const router = useRouter();
   const { register, handleSubmit, formState: { errors } } = useForm<CustomerFormInputs>({
     resolver: zodResolver(customerSchema),
-    defaultValues: customer || {
+    defaultValues: initialData || {
       name: "",
       phone: "",
       email: "",
@@ -40,47 +42,49 @@ export default function CustomerForm({ customer, onSave, setOpen }: CustomerForm
   });
 
   const onSubmit: SubmitHandler<CustomerFormInputs> = async (data) => {
-    setLoading(true);
     await onSave(data);
-    setLoading(false);
   };
 
   return (
-    <DialogContent className="sm:max-w-lg bg-card">
-      <DialogHeader>
-        <DialogTitle className="font-headline text-2xl">{customer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
-      </DialogHeader>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
-        <div>
-          <Label htmlFor="name">Full Name</Label>
-          <Input id="name" {...register("name")} aria-invalid={errors.name ? "true" : "false"} />
-          {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
-        </div>
-        <div>
-          <Label htmlFor="phone">Phone Number</Label>
-          <Input id="phone" {...register("phone")} aria-invalid={errors.phone ? "true" : "false"} />
-          {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone.message}</p>}
-        </div>
-        <div>
-          <Label htmlFor="email">Email Address (Optional)</Label>
-          <Input id="email" type="email" {...register("email")} aria-invalid={errors.email ? "true" : "false"} />
-          {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
-        </div>
-        <div>
-          <Label htmlFor="location">Location / Address</Label>
-          <Textarea id="location" {...register("location")} aria-invalid={errors.location ? "true" : "false"} />
-          {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={loading}>Cancel</Button>
-          </DialogClose>
-          <Button type="submit" disabled={loading}>
-            {loading && <LoadingSpinner size={16} className="mr-2" />}
-            {customer ? "Save Changes" : "Add Customer"}
+    <Card className="w-full max-w-2xl mx-auto shadow-lg">
+      <CardHeader>
+        <CardTitle className="font-headline text-2xl">
+          {mode === "create" ? "Add New Customer" : "Edit Customer"}
+        </CardTitle>
+      </CardHeader>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <CardContent className="space-y-6 py-4">
+          <div>
+            <Label htmlFor="name">Full Name</Label>
+            <Input id="name" {...register("name")} aria-invalid={errors.name ? "true" : "false"} />
+            {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
+          </div>
+          <div>
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input id="phone" {...register("phone")} aria-invalid={errors.phone ? "true" : "false"} />
+            {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone.message}</p>}
+          </div>
+          <div>
+            <Label htmlFor="email">Email Address (Optional)</Label>
+            <Input id="email" type="email" {...register("email")} aria-invalid={errors.email ? "true" : "false"} />
+            {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
+          </div>
+          <div>
+            <Label htmlFor="location">Location / Address</Label>
+            <Textarea id="location" {...register("location")} aria-invalid={errors.location ? "true" : "false"} />
+            {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-end space-x-2 border-t pt-6">
+          <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSaving}>
+            Cancel
           </Button>
-        </DialogFooter>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving && <LoadingSpinner size={16} className="mr-2" />}
+            {mode === "create" ? "Add Customer" : "Save Changes"}
+          </Button>
+        </CardFooter>
       </form>
-    </DialogContent>
+    </Card>
   );
 }
