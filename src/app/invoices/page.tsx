@@ -166,15 +166,11 @@ export default function InvoicesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right space-x-1">
-                        <Button variant="ghost" size="icon" title="View Invoice" asChild disabled> {/* View page not yet created */}
-                          <Link href={`/invoices/${invoice.id}`}>
-                             <ViewIcon className="h-4 w-4 text-blue-600" />
-                          </Link>
+                        <Button variant="ghost" size="icon" title="View Invoice" disabled> {/* View page not yet created */}
+                           <ViewIcon className="h-4 w-4 text-blue-600" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Edit Invoice" asChild disabled> {/* Edit page not yet created */}
-                           <Link href={`/invoices/edit/${invoice.id}`}>
+                        <Button variant="ghost" size="icon" title="Edit Invoice" disabled> {/* Edit page not yet created */}
                             <Edit className="h-4 w-4 text-yellow-600" />
-                          </Link>
                         </Button>
                         <Button variant="ghost" size="icon" title="Download PDF" disabled> {/* Placeholder action */}
                             <FileDown className="h-4 w-4 text-gray-600" />
