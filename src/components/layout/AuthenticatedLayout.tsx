@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -49,10 +50,23 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
           isMobile && mobileSidebarOpen ? "translate-x-0 shadow-xl" : ""
         )}
       >
-        <div className={cn("flex items-center justify-between h-16 border-b", sidebarCollapsed && !isMobile ? "px-0" : "px-4")}>
-           <Logo collapsed={sidebarCollapsed && !isMobile} />
+        <div className={cn(
+          "flex items-center h-16 border-b",
+          sidebarCollapsed && !isMobile 
+            ? "justify-center px-2" // Center content (the button) when collapsed on desktop
+            : "justify-between px-4" // Default layout for expanded or mobile
+        )}>
+          {/* Show Logo if: 
+              1. On mobile (sidebar is full width when open, 'collapsed' prop handles icon-only for Logo component)
+              2. Not on mobile AND sidebar is not collapsed (desktop expanded view)
+          */}
+          {(isMobile || !sidebarCollapsed) && (
+            <Logo collapsed={sidebarCollapsed && !isMobile} />
+          )}
+          
+          {/* Desktop toggle button */}
           {!isMobile && (
-            <Button variant="ghost" size="icon" onClick={toggleSidebar} className={cn(sidebarCollapsed ? "mx-auto" : "")}>
+            <Button variant="ghost" size="icon" onClick={toggleSidebar}>
               {sidebarCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
               <span className="sr-only">Toggle sidebar</span>
             </Button>
