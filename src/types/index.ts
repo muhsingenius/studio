@@ -1,3 +1,4 @@
+
 export type Role = "Admin" | "Accountant" | "Staff";
 
 export interface User {
@@ -16,12 +17,21 @@ export interface Customer {
   createdAt: Date;
 }
 
-export interface InvoiceItem {
+export interface Product {
   id: string;
+  name: string;
+  description?: string;
+  unitPrice: number;
+  createdAt: Date;
+}
+
+export interface InvoiceItem {
+  id: string; // Can be a product ID or a unique ID for custom items
   description: string;
   quantity: number;
   unitPrice: number;
   total: number;
+  productId?: string; // Optional: to link back to a Product
 }
 
 export type InvoiceStatus = "Pending" | "Paid" | "Overdue";
@@ -64,7 +74,7 @@ export interface Expense {
 }
 
 export interface TaxRate {
-  id: string; // e.g., 'vat', 'nhil', 'getfund'
+  id: string; // e.g., 'vat', 'nhil', 'getfund' or custom ID
   name: string; // e.g., 'VAT', 'NHIL', 'GETFund Levy'
   rate: number; // e.g., 0.15 for 15%
   description?: string;

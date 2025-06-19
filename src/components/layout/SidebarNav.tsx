@@ -1,9 +1,10 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3 } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, ShoppingBag } from "lucide-react";
 import type { Role } from "@/types"; // Assuming Role type is defined
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -17,6 +18,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/products", label: "Products", icon: ShoppingBag },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
