@@ -1,44 +1,114 @@
+
 "use client";
 
+import { useState, useEffect } from "react";
 import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { User, Role } from "@/types"; // Assuming User and Role types are defined
+import { User, Role } from "@/types";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, Edit, UserPlus } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext"; // To check if current user is Admin
+import { ShieldAlert, Edit, UserPlus, Trash2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-
-// Placeholder data - replace with Firestore integration
-const sampleUsers: User[] = [
-  { id: "user1", email: "admin@example.com", name: "Admin User", role: "Admin" },
-  { id: "user2", email: "accountant@example.com", name: "Accountant One", role: "Accountant" },
-  { id: "user3", email: "staff@example.com", name: "Staff Member", role: "Staff" },
-];
+import { db } from "@/lib/firebase";
+import { collection, query, where, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function AdminUsersPage() {
   const { currentUser } = useAuth();
+  const { toast } = useToast();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   useEffect(() => {
-    // Simulate fetching users - In a real app, fetch from Firestore
-    // and ensure only Admins can access this data via Firestore rules.
-    setIsLoading(true);
-    setTimeout(() => {
-      if (currentUser?.role === "Admin") {
-        setUsers(sampleUsers);
-      }
+    if (!currentUser || currentUser.role !== "Admin" || !currentUser.businessId) {
       setIsLoading(false);
-    }, 1000);
-  }, [currentUser]);
+      setUsers([]);
+      return;
+    }
+
+    setIsLoading(true);
+    const usersCollectionRef = collection(db, "users");
+    const q = query(usersCollectionRef, where("businessId", "==", currentUser.businessId));
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      setUsers(fetchedUsers.filter(user => user.id !== currentUser.id)); // Exclude current admin from list
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching users: ", error);
+      toast({ title: "Error", description: "Could not fetch users.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, toast]);
+
+  const handleAddUser = () => {
+    router.push("/admin/users/new");
+  };
+
+  const handleEditUser = (userId: string) => {
+    router.push(`/admin/users/${userId}/edit`);
+  };
+
+  const confirmDeleteUser = (user: User) => {
+    setUserToDelete(user);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete || !currentUser?.businessId || currentUser?.role !== "Admin") {
+      toast({ title: "Error", description: "Cannot delete user. Invalid conditions.", variant: "destructive" });
+      setUserToDelete(null);
+      return;
+    }
+    if (userToDelete.id === currentUser.id) {
+        toast({ title: "Error", description: "Admin users cannot delete themselves.", variant: "destructive"});
+        setUserToDelete(null);
+        return;
+    }
 
 
-  if (isLoading) {
+    setIsDeleting(true);
+    try {
+      const userDocRef = doc(db, "users", userToDelete.id);
+      await updateDoc(userDocRef, {
+        businessId: null, // Or deleteField() if you prefer
+        role: "Staff" // Or a more generic role, or null
+      });
+      // Note: Firebase Auth user is NOT deleted here.
+      // If using businessUsers collection, remove the entry there as well.
+
+      toast({ title: "User Removed", description: `${userToDelete.name || userToDelete.email} has been removed from the business.` });
+      setUserToDelete(null); // Close dialog
+    } catch (error) {
+      console.error("Error removing user from business: ", error);
+      toast({ title: "Error", description: "Could not remove user from business.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
+  if (isLoading && currentUser?.role === "Admin") {
     return (
       <AuthGuard>
         <AuthenticatedLayout>
@@ -74,18 +144,18 @@ export default function AdminUsersPage() {
       <AuthenticatedLayout>
         <PageHeader
           title="User Management"
-          description="View and manage user accounts and permissions."
+          description="View and manage user accounts and permissions for your business."
           actions={
-             <Button disabled> {/* Placeholder for Add User functionality */}
-              <UserPlus className="mr-2 h-5 w-5" /> Add New User (Coming Soon)
+             <Button onClick={handleAddUser}>
+              <UserPlus className="mr-2 h-5 w-5" /> Add New User
             </Button>
           }
         />
         
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>All Users</CardTitle>
-            <CardDescription>List of all registered users in the system.</CardDescription>
+            <CardTitle>Business Users</CardTitle>
+            <CardDescription>List of users associated with your business.</CardDescription>
           </CardHeader>
           <CardContent>
              <div className="overflow-x-auto">
@@ -99,27 +169,69 @@ export default function AdminUsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {users.length > 0 ? users.map((user) => (
                     <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-medium">{user.name || "N/A"}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant={user.role === "Admin" ? "destructive" : (user.role === "Accountant" ? "default" : "secondary")}>
+                        <Badge 
+                            variant={
+                                user.role === "Admin" ? "destructive" :
+                                user.role === "Accountant" ? "default" :
+                                user.role === "Sales" ? "secondary" : // Example, adjust as needed
+                                "outline"
+                            }
+                        >
                           {user.role}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" title="Edit User Permissions" disabled> {/* Placeholder */}
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="ghost" size="icon" title="Edit User" onClick={() => handleEditUser(user.id)}>
                           <Edit className="h-4 w-4 text-blue-600" />
                         </Button>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" title="Remove User" onClick={() => confirmDeleteUser(user)} disabled={isDeleting || user.id === currentUser.id}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                        No other users in this business yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
+
+        {userToDelete && (
+          <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove {userToDelete.name || userToDelete.email} from your business. Their account will still exist, but they will lose access to this business's data. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setUserToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteUser}
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? <LoadingSpinner size={16} /> : "Confirm Removal"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
       </AuthenticatedLayout>
     </AuthGuard>
   );

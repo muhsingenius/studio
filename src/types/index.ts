@@ -1,12 +1,12 @@
 
-export type Role = "Admin" | "Accountant" | "Staff";
+export type Role = "Admin" | "Accountant" | "Sales" | "Staff";
 
 export interface User {
   id: string;
   email: string | null;
   name?: string | null;
   role: Role;
-  businessId?: string; // Added to link user to a business
+  businessId?: string; 
 }
 
 export interface Customer {
@@ -15,9 +15,9 @@ export interface Customer {
   phone: string;
   email?: string;
   location: string;
-  createdAt: Date; // Represents Firestore Timestamp converted to Date client-side
+  createdAt: Date; 
   businessId: string; 
-  createdBy: string; // UID of the user who created the customer
+  createdBy: string; 
 }
 
 export type ItemType = 'inventory' | 'non-inventory' | 'service' | 'digital' | 'bundle';
@@ -41,7 +41,7 @@ export interface Item {
   taxCode?: string;
   createdAt: Date;
   updatedAt?: Date;
-  businessId?: string; // Optional: To scope items to a business
+  businessId?: string; 
 }
 
 export interface InvoiceItem {
@@ -78,10 +78,10 @@ export interface Invoice {
   notes?: string;
   pdfUrl?: string;
   createdAt: Date;
-  businessId?: string; // Optional: To scope invoices to a business
+  businessId?: string; 
   paymentDate?: Date;
-  paymentMethod?: string; // e.g., "Cash", "Bank Transfer", "Mobile Money"
-  paymentReference?: string; // e.g., Transaction ID, Cheque Number
+  paymentMethod?: string; 
+  paymentReference?: string; 
 }
 
 export interface Expense {
@@ -94,7 +94,7 @@ export interface Expense {
   paymentMethod: "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Other";
   taxType?: string;
   createdAt: Date;
-  businessId?: string; // Optional: To scope expenses to a business
+  businessId?: string; 
 }
 
 export interface TaxRate {
@@ -110,7 +110,7 @@ export interface TaxSettings {
   nhil: number;
   getFund: number;
   customTaxes: TaxRate[];
-  businessId?: string; // To scope tax settings to a business
+  businessId?: string; 
 }
 
 export interface Notification {
@@ -123,7 +123,6 @@ export interface Notification {
   link?: string;
 }
 
-// New Interfaces for Business Management
 export interface Business {
   id: string;
   name: string;
@@ -131,17 +130,15 @@ export interface Business {
   location?: string;
   currency?: string;
   logoUrl?: string; 
-  createdBy: string; // UID of the user who created the business
-  adminUids: string[]; // Array of UIDs of users who are admins for this business
+  createdBy: string; 
+  adminUids: string[]; 
   createdAt: Date;
 }
 
 export interface BusinessUser {
-  // Document ID might be composite: {businessId}_{userId}
-  // Or fields:
   userId: string;
   businessId: string;
-  role: Role; // Role within this specific business
+  role: Role; 
   isActive: boolean;
   joinedAt: Date;
 }
