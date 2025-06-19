@@ -17,6 +17,18 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Log the project ID to the console for debugging purposes
+if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
+  console.log("Firebase initializing with Project ID:", firebaseConfig.projectId);
+  if (!firebaseConfig.projectId) {
+    console.error("Firebase Project ID is missing. Check your .env file and ensure NEXT_PUBLIC_FIREBASE_PROJECT_ID is set.");
+  }
+  if (!firebaseConfig.apiKey) {
+    console.error("Firebase API Key is missing. Check your .env file and ensure NEXT_PUBLIC_FIREBASE_API_KEY is set.");
+  }
+}
+
+
 // Initialize Firebase
 let app: FirebaseApp;
 let auth: Auth;
@@ -54,4 +66,3 @@ NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
 You can find these credentials in your Firebase project settings:
 Project Overview -> Project settings (gear icon) -> General tab -> Your apps -> Web app -> Firebase SDK snippet -> Config.
 */
-
