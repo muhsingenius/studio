@@ -79,7 +79,7 @@ export default function DirectSaleForm({
     };
   }, [sale]);
 
-  const { control, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<DirectSaleFormInputs>({
+  const { control, register, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<DirectSaleFormInputs>({
     resolver: zodResolver(directSaleSchema),
     defaultValues,
   });
