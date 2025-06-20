@@ -10,7 +10,7 @@ import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, FileText, Users, R
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, Timestamp, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, Timestamp, orderBy, limit, doc, getDoc } from "firebase/firestore";
 import type { Payment, RevenueRecord, Invoice } from "@/types";
 import { format } from "date-fns";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -93,8 +93,8 @@ export default function DashboardPage() {
         where("businessId", "==", currentUser.businessId)
       );
       const revenueRecordsSnapshot = await getDocs(revenueRecordsQuery);
-      revenueRecordsSnapshot.forEach((doc) => {
-        const record = { id: doc.id, ...doc.data() } as RevenueRecord;
+      revenueRecordsSnapshot.forEach((docSnap) => { // Renamed doc to docSnap to avoid conflict with firestore's doc
+        const record = { id: docSnap.id, ...docSnap.data() } as RevenueRecord;
         totalOtherRevenue += record.amount;
         fetchedTransactions.push({
           id: record.id,
@@ -140,12 +140,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  // Added missing imports for doc and getDoc to satisfy the linter/compiler for invoice fetching
   }, [currentUser?.businessId]); 
-  
-  // Helper to fetch invoice data, used inside fetchDashboardData's map
-  const { getDoc, doc } = // This is a bit hacky, but to quickly include the imports without full re-eval
-    require("firebase/firestore");
 
 
   useEffect(() => {
@@ -286,11 +281,3 @@ export default function DashboardPage() {
     </AuthGuard>
   );
 }
-
-// Note: A slightly unconventional `require` was added for `getDoc` and `doc`
-// to quickly resolve an import issue in the callback without a full re-evaluation.
-// In a standard environment, these would be top-level imports.
-// The functionality to fetch invoiceNumber for payment description is added.
-// Placeholders for expenses, profit, tax, and customer count are kept as they require new data sources/logic.
-// Formatting for GHS amounts now includes 2 decimal places.
-// Updated card titles and descriptions for Invoice Revenue and Other Revenue.
