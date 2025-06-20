@@ -54,6 +54,8 @@ export interface InvoiceItem {
 }
 
 export type InvoiceStatus = "Pending" | "Paid" | "Overdue" | "Partially Paid";
+export type PaymentMethod = "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Card" | "Other";
+
 
 export interface Invoice {
   id: string;
@@ -89,7 +91,7 @@ export interface Expense {
   description?: string;
   amount: number;
   date: Date;
-  paymentMethod: "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Other";
+  paymentMethod: PaymentMethod;
   taxType?: string;
   createdAt: Date;
   businessId?: string; 
@@ -141,17 +143,29 @@ export interface BusinessUser {
   joinedAt: Date;
 }
 
-// New Payment type
 export interface Payment {
   id: string; 
   invoiceId: string; 
   businessId: string; 
   amountPaid: number;
   paymentDate: Date;
-  paymentMethod: "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Card" | "Other"; 
+  paymentMethod: PaymentMethod; 
   paymentReference?: string; 
   notes?: string; 
-  recordedBy: string; // User ID of who recorded it
-  createdAt: Date; // Firestore server timestamp
+  recordedBy: string; 
+  createdAt: Date; 
 }
 
+export interface OtherIncomeRecord {
+  id: string;
+  businessId: string;
+  dateReceived: Date;
+  source: string; // e.g., "Direct Sale", "Grant", "Commission", "Interest"
+  description: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  recordedBy: string; // User ID
+  createdAt: Date;
+}

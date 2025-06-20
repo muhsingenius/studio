@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark } from "lucide-react";
 import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -21,14 +21,13 @@ const navItems: NavItem[] = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/items", label: "Items", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/other-income", label: "Other Income", icon: Landmark },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
   { 
     href: "/settings/business", 
     label: "Business Profile", 
     icon: Briefcase 
-    // All authenticated users within a business should be able to see business profile settings.
-    // Editing permissions will be handled on the page itself.
   },
   { href: "/settings/tax", label: "Tax Setup", icon: Settings, roles: ["Admin", "Accountant"] },
   { href: "/admin/users", label: "User Management", icon: ShieldCheck, roles: ["Admin"] },
@@ -39,9 +38,9 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
   const { currentUser } = useAuth();
 
   const userCanView = (item: NavItem) => {
-    if (!currentUser) return false; // Should not happen in AuthenticatedLayout
+    if (!currentUser) return false; 
     if (item.adminOnly) return currentUser.role === "Admin";
-    if (!item.roles || item.roles.length === 0) return true; // No specific roles defined, visible to all
+    if (!item.roles || item.roles.length === 0) return true; 
     return item.roles.includes(currentUser.role);
   };
 
@@ -54,10 +53,11 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
           className={cn(
             "group flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
             "hover:bg-primary-foreground hover:text-primary",
-            pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard" && item.href !== "/settings/business" && !pathname.startsWith("/settings/tax") && !pathname.startsWith("/admin/users") ) || // for exact match
-            (pathname.startsWith(item.href) && item.href === "/settings/business" && !pathname.startsWith("/settings/tax")) || // For /settings/business and not /settings/tax
-            (pathname.startsWith(item.href) && item.href === "/settings/tax") || // For /settings/tax
-            (pathname.startsWith(item.href) && item.href === "/admin/users") // For /admin/users
+            pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard" && !pathname.startsWith("/settings/") && !pathname.startsWith("/admin/") && !pathname.startsWith("/other-income")) || 
+            (pathname.startsWith(item.href) && item.href === "/settings/business" && !pathname.startsWith("/settings/tax")) || 
+            (pathname.startsWith(item.href) && item.href === "/settings/tax") || 
+            (pathname.startsWith(item.href) && item.href === "/admin/users") ||
+            (pathname.startsWith(item.href) && item.href === "/other-income")
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-foreground/80",
             collapsed ? "justify-center" : ""
