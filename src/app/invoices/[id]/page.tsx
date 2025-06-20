@@ -10,7 +10,7 @@ import InvoiceDetailsDisplay from "@/components/invoices/InvoiceDetailsDisplay";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, DollarSign } from "lucide-react";
-import type { Invoice, Payment, InvoiceStatus, Item as ProductItem } from "@/types";
+import type { Invoice, Payment, InvoiceStatus, Item as ProductItem, InvoiceItem } from "@/types";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -24,7 +24,9 @@ import {
   serverTimestamp,
   orderBy,
   Timestamp,
-  runTransaction
+  runTransaction,
+  type DocumentReference,
+  type DocumentData,
 } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -119,16 +121,53 @@ export default function ViewInvoicePage() {
     try {
       await runTransaction(db, async (transaction) => {
         const invoiceDocRef = doc(db, "invoices", invoiceId);
+        
+        // --- PHASE 1: ALL READS ---
         const invoiceSnapshot = await transaction.get(invoiceDocRef);
-
         if (!invoiceSnapshot.exists()) {
           throw new Error("Invoice does not exist.");
         }
         const currentInvoiceData = invoiceSnapshot.data() as Invoice;
         const originalInvoiceStatus = currentInvoiceData.status;
 
+        // Calculate what the new total paid amount and status would be
+        const newTotalPaidAmountProvisional = (currentInvoiceData.totalPaidAmount || 0) + paymentFormData.amountPaid;
+        let newStatusProvisional: InvoiceStatus = currentInvoiceData.status;
+        const outstandingProvisional = currentInvoiceData.totalAmount - newTotalPaidAmountProvisional;
+
+        if (outstandingProvisional <= 0.001) { // Using epsilon for float comparison
+          newStatusProvisional = "Paid";
+        } else if (newTotalPaidAmountProvisional > 0 && outstandingProvisional > 0.001) {
+          newStatusProvisional = "Partially Paid";
+        } else if (isPast(new Date(currentInvoiceData.dueDate)) && outstandingProvisional > 0.001) {
+          newStatusProvisional = "Overdue";
+        } else if (outstandingProvisional > 0.001) { // Still some amount due, not overdue
+          newStatusProvisional = "Pending";
+        }
+
+        // Prepare for inventory reads if status will change to "Paid"
+        const itemInventoryReads: Array<{
+          productItemRef: DocumentReference<DocumentData>; // Use DocumentData for generic ref
+          invoiceItem: InvoiceItem;
+        }> = [];
+
+        if (originalInvoiceStatus !== "Paid" && newStatusProvisional === "Paid") {
+          for (const invItem of currentInvoiceData.items) {
+            if (invItem.itemId) {
+              const productItemRef = doc(db, "items", invItem.itemId);
+              itemInventoryReads.push({ productItemRef, invoiceItem: invItem });
+            }
+          }
+        }
+        
+        // Perform all necessary item reads
+        const itemSnapshots = await Promise.all(
+          itemInventoryReads.map(read => transaction.get(read.productItemRef))
+        );
+
+        // --- PHASE 2: ALL WRITES ---
         // 1. Create new payment document
-        const newPaymentDocRef = doc(collection(db, "payments")); // Auto-generate ID
+        const newPaymentDocRef = doc(collection(db, "payments"));
         transaction.set(newPaymentDocRef, {
           ...paymentFormData,
           invoiceId: currentInvoiceData.id,
@@ -137,65 +176,34 @@ export default function ViewInvoicePage() {
           createdAt: serverTimestamp(),
         });
 
-        // 2. Recalculate totalPaidAmount for the invoice
-        // We fetch all payments for this invoice within the transaction to ensure accuracy
-        const paymentsQuery = query(
-          collection(db, "payments"),
-          where("invoiceId", "==", currentInvoiceData.id),
-          where("businessId", "==", currentUser.businessId)
-        );
-        // Note: getDocs cannot be used inside a transaction directly for querying.
-        // We'll rely on the sum of currentInvoiceData.totalPaidAmount + new payment.
-        // For a more robust sum, one might fetch all payments outside and pass to transaction, or use a server-side counter.
-        // For simplicity and common case (adding one payment):
-        const newTotalPaidAmount = (currentInvoiceData.totalPaidAmount || 0) + paymentFormData.amountPaid;
-
-        // 3. Determine new invoice status
-        let newStatus: InvoiceStatus = currentInvoiceData.status;
-        const outstanding = currentInvoiceData.totalAmount - newTotalPaidAmount;
-
-        if (outstanding <= 0.001) { // Using epsilon for float comparison
-          newStatus = "Paid";
-        } else if (newTotalPaidAmount > 0 && outstanding > 0.001) {
-          newStatus = "Partially Paid";
-        } else if (isPast(new Date(currentInvoiceData.dueDate)) && outstanding > 0.001) {
-          newStatus = "Overdue";
-        } else if (outstanding > 0.001) { // Still some amount due, not overdue
-          newStatus = "Pending";
-        }
-
-
-        // 4. Update invoice document
+        // 2. Update invoice document (using the provisionally calculated status and amount)
         transaction.update(invoiceDocRef, {
-          totalPaidAmount: newTotalPaidAmount,
-          status: newStatus,
+          totalPaidAmount: newTotalPaidAmountProvisional,
+          status: newStatusProvisional,
         });
+        
+        // 3. Update inventory for each item if invoice is now "Paid"
+        if (originalInvoiceStatus !== "Paid" && newStatusProvisional === "Paid") {
+          for (let i = 0; i < itemInventoryReads.length; i++) {
+            const { productItemRef, invoiceItem } = itemInventoryReads[i];
+            const productItemSnap = itemSnapshots[i];
 
-        // 5. If invoice status changes to "Paid", update inventory
-        if (originalInvoiceStatus !== "Paid" && newStatus === "Paid") {
-          for (const invItem of currentInvoiceData.items) {
-            if (invItem.itemId) {
-              const productItemRef = doc(db, "items", invItem.itemId);
-              const productItemSnap = await transaction.get(productItemRef);
-
-              if (productItemSnap.exists()) {
-                const productItemData = productItemSnap.data() as ProductItem;
-                if (productItemData.trackInventory) {
-                  const currentQuantity = productItemData.quantityOnHand || 0;
-                  const newQuantityOnHand = currentQuantity - invItem.quantity;
-                  
-                  // Log a warning if stock goes negative, but proceed with update
-                  if (newQuantityOnHand < 0) {
-                    console.warn(`Inventory Alert: Stock for item "${productItemData.name}" (ID: ${invItem.itemId}) will be ${newQuantityOnHand}. Current: ${currentQuantity}, Sold in Invoice: ${invItem.quantity}.`);
-                  }
-                  transaction.update(productItemRef, { 
-                    quantityOnHand: newQuantityOnHand,
-                    updatedAt: serverTimestamp() 
-                  });
+            if (productItemSnap.exists()) {
+              const productItemData = productItemSnap.data() as ProductItem;
+              if (productItemData.trackInventory) {
+                const currentQuantity = productItemData.quantityOnHand || 0;
+                const newQuantityOnHand = currentQuantity - invoiceItem.quantity;
+                
+                if (newQuantityOnHand < 0) {
+                  console.warn(`Inventory Alert: Stock for item "${productItemData.name}" (ID: ${productItemRef.id}) will be ${newQuantityOnHand}. Current: ${currentQuantity}, Sold in Invoice: ${invoiceItem.quantity}.`);
                 }
-              } else {
-                console.warn(`Item with ID ${invItem.itemId} on invoice ${currentInvoiceData.invoiceNumber} not found in inventory. Stock not adjusted.`);
+                transaction.update(productItemRef, { 
+                  quantityOnHand: newQuantityOnHand,
+                  updatedAt: serverTimestamp() 
+                });
               }
+            } else {
+              console.warn(`Item with ID ${invoiceItem.itemId} on invoice ${currentInvoiceData.invoiceNumber} not found in inventory during write phase. Stock not adjusted for this item.`);
             }
           }
         }
