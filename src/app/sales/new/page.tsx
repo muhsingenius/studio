@@ -6,7 +6,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import DirectSaleForm, { type DirectSaleFormInputs } from "@/components/sales/DirectSaleForm";
-import type { Customer, TaxSettings, DirectSale, Item as ProductItem } from "@/types";
+import type { Customer, TaxSettings, DirectSale, Item as ProductItem, DirectSaleItem } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -23,7 +23,8 @@ import {
   Timestamp,
   where,
   writeBatch,
-  runTransaction
+  runTransaction,
+  DocumentReference
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -107,45 +108,67 @@ export default function NewDirectSalePage() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        // 1. Create the DirectSale document
-        const directSaleDocRef = doc(collection(db, "directSales"));
-        const newSaleData: DirectSale = {
-          ...salePayload,
-          id: directSaleDocRef.id, // Will be overwritten by Firestore, but good for local object
-          saleNumber: generatedSaleNumber,
-          businessId: currentUser.businessId,
-          recordedBy: currentUser.id,
-          createdAt: new Date(), // Placeholder, will be serverTimestamp
-        };
-        transaction.set(directSaleDocRef, { ...newSaleData, createdAt: serverTimestamp() });
+        // Phase 1: All READS
+        const itemUpdates: Array<{ ref: DocumentReference; newQuantity: number; name: string }> = [];
+        const itemDocsToRead: Array<{ id: string; ref: DocumentReference; saleItem: DirectSaleItem; productItem?: ProductItem }> = [];
 
-        // 2. Update inventory for each item sold
         for (const saleItem of salePayload.items) {
           if (saleItem.itemId) {
             const productItem = availableItems.find(p => p.id === saleItem.itemId);
             if (productItem && productItem.trackInventory) {
-              const itemDocRef = doc(db, "items", saleItem.itemId);
-              const itemDoc = await transaction.get(itemDocRef);
-              if (!itemDoc.exists()) {
-                throw new Error(`Item with ID ${saleItem.itemId} not found.`);
-              }
-              const currentQuantity = itemDoc.data().quantityOnHand || 0;
-              const newQuantity = currentQuantity - saleItem.quantity;
-              if (newQuantity < 0) {
-                // Optionally allow negative inventory or throw error
-                toast({
-                    title: "Inventory Alert",
-                    description: `Not enough stock for ${productItem.name}. Sale recorded, but inventory is negative.`,
-                    variant: "destructive", // Or "default" with a warning style
-                });
-              }
-              transaction.update(itemDocRef, { quantityOnHand: newQuantity, updatedAt: serverTimestamp() });
+              itemDocsToRead.push({
+                id: saleItem.itemId,
+                ref: doc(db, "items", saleItem.itemId),
+                saleItem,
+                productItem
+              });
             }
           }
         }
-      });
+
+        const itemSnapshots = await Promise.all(
+          itemDocsToRead.map(itemToRead => transaction.get(itemToRead.ref))
+        );
+
+        for (let i = 0; i < itemDocsToRead.length; i++) {
+          const itemDocSnap = itemSnapshots[i];
+          const { saleItem, productItem, ref: itemDocRef } = itemDocsToRead[i];
+
+          if (!itemDocSnap.exists()) {
+            throw new Error(`Item with ID ${saleItem.itemId} (${productItem?.name || 'Unknown item'}) not found.`);
+          }
+          const currentQuantity = itemDocSnap.data().quantityOnHand || 0;
+          const newQuantity = currentQuantity - saleItem.quantity;
+
+          if (newQuantity < 0 && productItem) {
+            console.warn(`Inventory Alert: Stock for "${productItem.name}" is now negative (${newQuantity}). Current: ${currentQuantity}, Sold: ${saleItem.quantity}.`);
+          }
+          itemUpdates.push({ ref: itemDocRef, newQuantity, name: productItem?.name || 'Unknown Item' });
+        }
+
+        // Phase 2: All WRITES
+        // 2a. Create the DirectSale document
+        const directSaleDocRef = doc(collection(db, "directSales")); // Generate new ID for the sale
+        const newSaleData: DirectSale = {
+          ...salePayload,
+          id: directSaleDocRef.id, // Use the generated ID
+          saleNumber: generatedSaleNumber,
+          businessId: currentUser.businessId!,
+          recordedBy: currentUser.id!,
+          createdAt: new Date(), // Placeholder, will be serverTimestamp in the transaction
+        };
+        transaction.set(directSaleDocRef, { ...newSaleData, createdAt: serverTimestamp() });
+
+        // 2b. Update inventory for each item sold
+        for (const update of itemUpdates) {
+          transaction.update(update.ref, { quantityOnHand: update.newQuantity, updatedAt: serverTimestamp() });
+        }
+      }); // End of transaction
 
       toast({ title: "Direct Sale Recorded", description: `Sale ${generatedSaleNumber} has been saved successfully.` });
+      // Check for negative inventory warnings after successful transaction (conceptual for now)
+      // For example, if the transaction returned a list of warnings, you could toast them here.
+
       router.push("/sales");
 
     } catch (error) {
@@ -155,6 +178,7 @@ export default function NewDirectSalePage() {
       setIsSaving(false);
     }
   };
+
 
   if (isLoadingData || !taxSettings || !generatedSaleNumber) { 
     return (
@@ -202,3 +226,4 @@ export default function NewDirectSalePage() {
     </AuthGuard>
   );
 }
+
