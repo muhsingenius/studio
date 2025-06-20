@@ -20,7 +20,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { paymentMethods } from "@/types"; // Assuming paymentMethods is exported from types
+import { paymentMethods } from "@/types"; // Now correctly imports the exported constant
 
 const directSaleItemSchema = z.object({
   id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)),

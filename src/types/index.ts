@@ -54,7 +54,9 @@ export interface InvoiceItem {
 }
 
 export type InvoiceStatus = "Pending" | "Paid" | "Overdue" | "Partially Paid";
-export type PaymentMethod = "Cash" | "Mobile Money" | "Bank Transfer" | "Cheque" | "Card" | "Other";
+
+export const paymentMethods = ["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Card", "Other"] as const;
+export type PaymentMethod = typeof paymentMethods[number];
 
 
 export interface Invoice {
@@ -74,7 +76,7 @@ export interface Invoice {
     totalTax: number;
   };
   totalAmount: number;
-  totalPaidAmount: number;
+  totalPaidAmount: number; // Sum of all payments for this invoice
   status: InvoiceStatus;
   dateIssued: Date;
   dueDate: Date;
