@@ -44,6 +44,11 @@ if (!getApps().length) {
 
 auth = getAuth(app);
 db = getFirestore(app);
+console.log("Firestore instance (db) initialized:", db); // Added log
+if (!db || typeof db.collection !== 'function') {
+  console.error("Firestore instance (db) appears to be invalid after initialization! Check Firebase config and environment variables.");
+}
+
 
 // Enable Firestore persistence
 if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
