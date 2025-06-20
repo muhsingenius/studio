@@ -156,17 +156,20 @@ export interface Payment {
   createdAt: Date; 
 }
 
+export const revenueSourceCategories = ["Direct Sale", "Service Rendered", "Commission", "Grant", "Interest Income", "Rental Income", "Donation", "Subscription", "Refund Received", "Other"] as const;
+export type RevenueSourceCategory = typeof revenueSourceCategories[number];
+
 export interface RevenueRecord {
   id: string;
   businessId: string;
   dateReceived: Date;
-  source: string; // e.g., "Direct Sale", "Grant", "Commission", "Service Rendered"
+  source: RevenueSourceCategory; 
   description: string;
   amount: number;
   paymentMethod: PaymentMethod;
-  reference?: string; // e.g., Transaction ID, Cheque No.
+  reference?: string; 
   notes?: string;
-  recordedBy: string; // User ID of who recorded this revenue
+  recordedBy: string; 
   createdAt: Date;
 }
 

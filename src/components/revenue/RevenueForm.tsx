@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState } from "react"; // Added useState
 import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,14 +17,15 @@ import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { CalendarIcon, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import type { RevenueRecord, PaymentMethod } from "@/types";
+import type { RevenueRecord, PaymentMethod, RevenueSourceCategory } from "@/types";
+import { revenueSourceCategories } from "@/types"; // Import categories
 import { useRouter } from "next/navigation";
 
 const paymentMethods: PaymentMethod[] = ["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Card", "Other"];
 
 const revenueSchema = z.object({
   dateReceived: z.date({ required_error: "Date is required." }),
-  source: z.string().min(2, { message: "Source must be at least 2 characters." }),
+  source: z.enum(revenueSourceCategories, { required_error: "Source of revenue is required." }),
   description: z.string().min(3, { message: "Description must be at least 3 characters." }),
   amount: z.coerce.number().positive({ message: "Amount must be a positive number." }),
   paymentMethod: z.enum(paymentMethods, { required_error: "Payment method is required." }),
@@ -42,6 +44,8 @@ interface RevenueFormProps {
 
 export default function RevenueForm({ initialData, onSave, isSaving, mode }: RevenueFormProps) {
   const router = useRouter();
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // State for calendar popover
+
   const { control, register, handleSubmit, formState: { errors } } = useForm<RevenueFormInputs>({
     resolver: zodResolver(revenueSchema),
     defaultValues: initialData ? {
@@ -49,7 +53,7 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
         dateReceived: new Date(initialData.dateReceived),
     } : {
       dateReceived: new Date(),
-      source: "",
+      source: undefined, // Default to undefined for Select placeholder
       description: "",
       amount: 0,
       paymentMethod: undefined,
@@ -77,7 +81,7 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
               name="dateReceived"
               control={control}
               render={({ field }) => (
-                <Popover>
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       id="dateReceived"
@@ -94,7 +98,15 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={(date) => {
+                        field.onChange(date);
+                        setIsCalendarOpen(false); // Close popover on date selection
+                      }}
+                      initialFocus
+                    />
                   </PopoverContent>
                 </Popover>
               )}
@@ -104,11 +116,21 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
 
           <div>
             <Label htmlFor="source">Source of Revenue *</Label>
-            <Input 
-              id="source" 
-              {...register("source")} 
-              placeholder="e.g., Direct Sale, Grant, Commission, Service Rendered" 
-              aria-invalid={!!errors.source}
+            <Controller
+              name="source"
+              control={control}
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <SelectTrigger id="source" aria-invalid={!!errors.source}>
+                    <SelectValue placeholder="Select source of revenue" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {revenueSourceCategories.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             />
             {errors.source && <p className="text-sm text-destructive mt-1">{errors.source.message}</p>}
           </div>
@@ -197,4 +219,3 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
     </Card>
   );
 }
-
