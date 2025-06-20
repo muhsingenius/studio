@@ -20,7 +20,9 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
-import { paymentMethods } from "@/types"; // Now correctly imports the exported constant
+import { paymentMethods } from "@/types";
+
+const NO_CUSTOMER_SELECTED_VALUE = "__NO_CUSTOMER_SELECTED__";
 
 const directSaleItemSchema = z.object({
   id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)),
@@ -44,7 +46,7 @@ const directSaleSchema = z.object({
 export type DirectSaleFormInputs = z.infer<typeof directSaleSchema>;
 
 interface DirectSaleFormProps {
-  sale?: DirectSale; 
+  sale?: DirectSale;
   customers: Customer[];
   taxSettings: TaxSettings;
   availableItems: ProductItem[];
@@ -106,8 +108,15 @@ export default function DirectSaleForm({
       if (customer) {
         setValue("customerName", customer.name); // Autofill customer name if selected
       }
+    } else {
+        // If customerId is cleared (becomes falsy like "" or undefined), clear customerName if it was auto-filled
+        const currentCustomerName = getValues("customerName");
+        const customerExistsWithName = customers.some(c => c.name === currentCustomerName);
+        if (customerExistsWithName && !customers.find(c => c.id === watchedCustomerId)) {
+             setValue("customerName", "");
+        }
     }
-  }, [watchedCustomerId, customers, setValue]);
+  }, [watchedCustomerId, customers, setValue, getValues]);
 
 
   const subtotal = useMemo(() => {
@@ -138,7 +147,7 @@ export default function DirectSaleForm({
     }
     update(index, newItemData as any);
   };
-  
+
   const handleItemSelect = (index: number, selectedItemId: string | null) => {
     const currentItem = getValues(`items.${index}`);
     if (selectedItemId) {
@@ -159,16 +168,19 @@ export default function DirectSaleForm({
 
   const processSubmit: SubmitHandler<DirectSaleFormInputs> = (data) => {
     let finalCustomerName = data.customerName;
-    if (data.customerId) {
+    if (data.customerId && data.customerId !== NO_CUSTOMER_SELECTED_VALUE) { // Check against special value
         const selectedCustomer = customers.find(c => c.id === data.customerId);
         if (selectedCustomer) finalCustomerName = selectedCustomer.name;
+    } else if (!data.customerName) { // If no customerId and no manual name, default to "Walk-in Customer"
+        finalCustomerName = "Walk-in Customer";
     }
 
+
     const finalSaleData: Omit<DirectSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber"> = {
-      customerId: data.customerId,
+      customerId: data.customerId === NO_CUSTOMER_SELECTED_VALUE ? undefined : data.customerId, // Set to undefined if "no customer"
       customerName: finalCustomerName,
-      items: data.items.map(item => ({ 
-        id: item.id, 
+      items: data.items.map(item => ({
+        id: item.id,
         itemId: item.itemId,
         description: item.description,
         quantity: item.quantity,
@@ -190,8 +202,8 @@ export default function DirectSaleForm({
     };
     onSave(finalSaleData, data);
   };
-  
-  const isReadOnly = formMode === "edit" && !!sale; // Simplified: make all fields read-only in edit mode for now
+
+  const isReadOnly = formMode === "edit" && !!sale;
 
   return (
     <form onSubmit={handleSubmit(processSubmit)}>
@@ -214,12 +226,16 @@ export default function DirectSaleForm({
                 name="customerId"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === NO_CUSTOMER_SELECTED_VALUE ? "" : value)}
+                    value={field.value || ""} // Ensures placeholder shows if field.value is ""
+                    disabled={isReadOnly}
+                  >
                     <SelectTrigger id="customerId" aria-invalid={errors.customerId ? "true" : "false"}>
                       <SelectValue placeholder="Select a customer or leave blank" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">-- No Customer --</SelectItem>
+                      <SelectItem value={NO_CUSTOMER_SELECTED_VALUE}>-- No Customer --</SelectItem>
                       {customers.map(customer => (
                         <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
                       ))}
@@ -231,11 +247,11 @@ export default function DirectSaleForm({
             </div>
             <div className="space-y-2">
               <Label htmlFor="customerName">Or Enter Customer Name</Label>
-              <Input 
-                id="customerName" 
-                {...register("customerName")} 
+              <Input
+                id="customerName"
+                {...register("customerName")}
                 placeholder="Walk-in Customer"
-                disabled={isReadOnly || !!watchedCustomerId} // Disable if a customer is selected from dropdown
+                disabled={isReadOnly || !!watchedCustomerId}
                 className={(isReadOnly || !!watchedCustomerId) ? "bg-muted cursor-not-allowed" : ""}
               />
             </div>
@@ -275,12 +291,12 @@ export default function DirectSaleForm({
             <Label className="text-lg font-medium">Items Sold</Label>
             {fields.map((field, index) => (
               <LineItemInput
-                key={field.id} 
-                item={watchedItems[index]} 
+                key={field.id}
+                item={watchedItems[index]}
                 index={index}
                 availableItems={availableItems}
-                onItemSelect={handleItemSelect} 
-                onChange={handleItemChange} 
+                onItemSelect={handleItemSelect}
+                onChange={handleItemChange}
                 onRemove={() => remove(index)}
                 isReadOnly={isReadOnly}
               />
@@ -321,16 +337,16 @@ export default function DirectSaleForm({
                 </div>
                  <div>
                     <Label htmlFor="paymentReference">Payment Reference (Optional)</Label>
-                    <Input 
-                        id="paymentReference" 
-                        {...register("paymentReference")} 
-                        placeholder="e.g., Transaction ID, Momo Name" 
-                        disabled={formMode === "edit" && sale?.paymentReference ? true : false} // Only notes editable in edit mode
+                    <Input
+                        id="paymentReference"
+                        {...register("paymentReference")}
+                        placeholder="e.g., Transaction ID, Momo Name"
+                        disabled={formMode === "edit" && isReadOnly } 
                     />
                 </div>
             </div>
           </div>
-          
+
           {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes" className="text-lg font-medium">Notes (Optional)</Label>
@@ -339,7 +355,7 @@ export default function DirectSaleForm({
               placeholder="Additional information about the sale..."
               {...register("notes")}
               rows={3}
-              disabled={formMode === 'edit' && !isReadOnly ? false : isReadOnly} // Notes editable
+              disabled={formMode === 'edit' && isReadOnly ? false : isReadOnly }
             />
           </div>
 
@@ -372,7 +388,7 @@ export default function DirectSaleForm({
           </div>
         </CardContent>
         <CardFooter className="flex flex-col md:flex-row justify-end gap-3 border-t pt-6">
-          <Button type="submit" disabled={isSaving || (formMode === 'edit' && isReadOnly && !getValues("notes"))} className="w-full md:w-auto">
+          <Button type="submit" disabled={isSaving || (formMode === 'edit' && isReadOnly && !getValues("notes") && !getValues("paymentReference"))} className="w-full md:w-auto">
             {isSaving ? <LoadingSpinner size={16} className="mr-2"/> : <Save className="mr-2 h-4 w-4" />}
             {isSaving ? (formMode === "edit" ? "Updating..." : "Saving...") : (formMode === "edit" ? "Update Sale" : "Record Sale & Payment")}
           </Button>
@@ -381,3 +397,5 @@ export default function DirectSaleForm({
     </form>
   );
 }
+
+    
