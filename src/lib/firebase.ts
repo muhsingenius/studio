@@ -20,7 +20,7 @@ export const firebaseConfig = {
 
 // Log the project ID to the console for debugging purposes
 if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
-  console.log("Firebase initializing with Config:", JSON.stringify(firebaseConfig, null, 2));
+  console.log("Firebase initializing with Config:", JSON.stringify(firebaseConfig, (key, value) => key === "apiKey" ? "<REDACTED>" : value, 2));
   if (!firebaseConfig.projectId) {
     console.error(
       "Firebase Project ID is MISSING in firebaseConfig. " +
@@ -55,7 +55,7 @@ if (!getApps().length) {
     console.error("CRITICAL: Error during firebase.initializeApp(firebaseConfig):", initError.message, initError.code, initError);
     console.error("This usually means the firebaseConfig object itself is malformed or missing essential fields BEFORE being passed to initializeApp. Double check environment variables and their loading.");
     // @ts-ignore // Allow assigning to app even if it's potentially uninitialized due to error
-    app = null; 
+    app = null;
   }
 } else {
   app = getApp();
@@ -70,21 +70,27 @@ if (app) { // Only proceed if app initialization was successful (or app was reus
     if (!db || typeof db.collection !== 'function') {
       console.error(
         "CRITICAL: Firestore instance (db) appears to be invalid AFTER getFirestore() call. " +
-        "This strongly suggests a problem with the Firebase configuration passed to initializeApp, or that Firestore service is not properly enabled for your project in the Firebase console. " +
-        "Please verify ALL NEXT_PUBLIC_FIREBASE_... variables in your .env file are correct, that Firestore is enabled for your project, and that the Firebase project is properly set up."
+        "This strongly suggests a problem with the Firebase configuration (check .env variables like NEXT_PUBLIC_FIREBASE_PROJECT_ID), " +
+        "that Firestore service is not properly enabled for your project in the Firebase console, " +
+        "OR a network issue/Firebase service problem is preventing proper initialization. " +
+        "Please verify ALL NEXT_PUBLIC_FIREBASE_... variables, check your Firebase project setup in the console, and ensure your network connection to Firebase services is stable."
       );
     } else {
         console.log("Firestore instance (db) seems valid (has a collection method).");
     }
   } catch (firestoreError: any) {
     console.error("CRITICAL: Error explicitly thrown by getFirestore(app):", firestoreError.message, firestoreError.code, firestoreError);
-    console.error("This could be due to issues like Firestore not being enabled in your Firebase project console, or network issues preventing SDK initialization. Please verify your Firebase project setup.");
-    db = null; 
+    console.error(
+        "This could be due to issues like Firestore not being enabled in your Firebase project console, " +
+        "incorrect Firebase project configuration (check .env variables), " +
+        "or network issues preventing SDK initialization. Please verify your Firebase project setup and network connectivity."
+    );
+    db = null;
   }
 
 
   // Enable Firestore persistence
-  if (typeof window !== 'undefined' && db && typeof db.collection === 'function') { 
+  if (typeof window !== 'undefined' && db && typeof db.collection === 'function') {
     enableIndexedDbPersistence(db)
       .then(() => {
         console.log("Firestore offline persistence enabled.");
@@ -104,7 +110,7 @@ if (app) { // Only proceed if app initialization was successful (or app was reus
 
 
   try {
-    functions = getFunctions(app); 
+    functions = getFunctions(app);
     console.log("Firebase Functions service initialized.");
   } catch (functionsError: any) {
     console.error("Error initializing Firebase Functions:", functionsError.message, functionsError.code, functionsError);
@@ -141,4 +147,3 @@ NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
 You can find these credentials in your Firebase project settings:
 Project Overview -> Project settings (gear icon) -> General tab -> Your apps -> Web app -> Firebase SDK snippet -> Config.
 */
-
