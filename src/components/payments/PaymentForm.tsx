@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react"; // Added React import
 import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -40,14 +41,14 @@ interface PaymentFormProps {
   isSaving?: boolean;
 }
 
-export default function PaymentForm({ 
-  isOpen, 
-  onOpenChange, 
-  onSave, 
-  invoiceId, 
+export default function PaymentForm({
+  isOpen,
+  onOpenChange,
+  onSave,
+  invoiceId,
   invoiceTotalAmount,
   currentPaidAmount,
-  isSaving 
+  isSaving
 }: PaymentFormProps) {
   const outstandingAmount = invoiceTotalAmount - currentPaidAmount;
 
@@ -77,9 +78,8 @@ export default function PaymentForm({
 
   const processSubmit: SubmitHandler<PaymentFormInputs> = async (data) => {
     await onSave(data);
-    if (!isSaving) { // Only close if save wasn't interrupted by an error that kept isSaving true
-      onOpenChange(false);
-    }
+    // Removed automatic close on save to allow caller (ViewInvoicePage) to control it
+    // This prevents closing if there's an error during save that keeps isSaving true
   };
 
   return (
@@ -163,7 +163,7 @@ export default function PaymentForm({
               {errors.paymentMethod && <p className="text-sm text-destructive mt-1">{errors.paymentMethod.message}</p>}
             </div>
           </div>
-          
+
           <div>
             <Label htmlFor="paymentReference">Payment Reference (Optional)</Label>
             <Input id="paymentReference" {...register("paymentReference")} placeholder="e.g., Transaction ID, Cheque No." />
