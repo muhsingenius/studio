@@ -20,18 +20,18 @@ export const firebaseConfig = {
 
 // Log the project ID to the console for debugging purposes
 if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
-  console.log("Firebase initializing with Config:", firebaseConfig);
+  console.log("Firebase initializing with Config:", JSON.stringify(firebaseConfig, null, 2));
   if (!firebaseConfig.projectId) {
     console.error(
       "Firebase Project ID is MISSING in firebaseConfig. " +
-      "This means NEXT_PUBLIC_FIREBASE_PROJECT_ID is likely undefined or not set in your .env file. " +
+      "This means NEXT_PUBLIC_FIREBASE_PROJECT_ID is likely undefined or not set in your .env file or not being picked up. " +
       "Firebase cannot initialize without a Project ID."
     );
   }
   if (!firebaseConfig.apiKey) {
     console.error(
       "Firebase API Key is MISSING in firebaseConfig. " +
-      "This means NEXT_PUBLIC_FIREBASE_API_KEY is likely undefined or not set in your .env file. " +
+      "This means NEXT_PUBLIC_FIREBASE_API_KEY is likely undefined or not set in your .env file or not being picked up. " +
       "Firebase may not initialize correctly without an API Key."
     );
   }
@@ -41,65 +41,81 @@ if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
 // Initialize Firebase
 let app: FirebaseApp;
 let auth: Auth;
-let db: Firestore;
-let functions: Functions;
+let db: Firestore | null = null; // Initialize db as null
+let functions: Functions | null = null; // Initialize functions as null
 
 if (!getApps().length) {
   if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-    console.error("CRITICAL: Firebase initialization cannot proceed due to missing projectId or apiKey in firebaseConfig. Please check your .env file.");
-    // Assign null or throw an error to prevent further execution with invalid config
-    // For simplicity, we'll let it proceed and subsequent Firebase calls will likely fail,
-    // but this log provides an early warning.
+    console.error("CRITICAL: Firebase initialization cannot proceed due to missing projectId or apiKey in firebaseConfig. Please check your .env file and ensure the Next.js server was restarted after changes.");
   }
-  app = initializeApp(firebaseConfig);
+  try {
+    app = initializeApp(firebaseConfig);
+    console.log("Firebase app initialized successfully.");
+  } catch (initError: any) {
+    console.error("CRITICAL: Error during firebase.initializeApp(firebaseConfig):", initError.message, initError.code, initError);
+    console.error("This usually means the firebaseConfig object itself is malformed or missing essential fields BEFORE being passed to initializeApp. Double check environment variables and their loading.");
+    // @ts-ignore // Allow assigning to app even if it's potentially uninitialized due to error
+    app = null; 
+  }
 } else {
   app = getApp();
+  console.log("Firebase app re-used existing instance.");
 }
 
-auth = getAuth(app);
-try {
-  db = getFirestore(app);
-  console.log("Firestore instance (db) initialized:", db);
-  if (!db || typeof db.collection !== 'function') {
-    console.error(
-      "CRITICAL: Firestore instance (db) appears to be invalid AFTER getFirestore() call. " +
-      "This strongly suggests a problem with the Firebase configuration passed to initializeApp. " +
-      "Please verify ALL NEXT_PUBLIC_FIREBASE_... variables in your .env file are correct and that the Firebase project is properly set up."
-    );
+if (app) { // Only proceed if app initialization was successful (or app was reused)
+  auth = getAuth(app);
+  try {
+    db = getFirestore(app);
+    console.log("Firestore service initialized via getFirestore(app). Firestore instance:", db);
+    if (!db || typeof db.collection !== 'function') {
+      console.error(
+        "CRITICAL: Firestore instance (db) appears to be invalid AFTER getFirestore() call. " +
+        "This strongly suggests a problem with the Firebase configuration passed to initializeApp, or that Firestore service is not properly enabled for your project in the Firebase console. " +
+        "Please verify ALL NEXT_PUBLIC_FIREBASE_... variables in your .env file are correct, that Firestore is enabled for your project, and that the Firebase project is properly set up."
+      );
+    } else {
+        console.log("Firestore instance (db) seems valid (has a collection method).");
+    }
+  } catch (firestoreError: any) {
+    console.error("CRITICAL: Error explicitly thrown by getFirestore(app):", firestoreError.message, firestoreError.code, firestoreError);
+    console.error("This could be due to issues like Firestore not being enabled in your Firebase project console, or network issues preventing SDK initialization. Please verify your Firebase project setup.");
+    db = null; 
   }
-} catch (error) {
-  console.error("CRITICAL: Error calling getFirestore(app). This indicates a severe issue with Firebase setup or configuration.", error);
-  // @ts-ignore
-  db = null; // Ensure db is marked as invalid if getFirestore fails
-}
 
 
-// Enable Firestore persistence
-if (typeof window !== 'undefined' && db && typeof db.collection === 'function') { // Ensure this only runs on the client-side and db is valid
-  enableIndexedDbPersistence(db)
-    .then(() => {
-      console.log("Firestore offline persistence enabled.");
-    })
-    .catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn("Firestore persistence failed (failed-precondition). This can happen if you have multiple tabs open or if persistence is already enabled. The app can still function but might not have full offline capabilities.");
-      } else if (err.code === 'unimplemented') {
-        console.warn("Firestore persistence failed (unimplemented). The current browser does not support all of the features required to enable persistence.");
-      } else {
-        console.error("Firestore persistence failed with error: ", err);
-      }
-    });
-} else if (typeof window !== 'undefined' && (!db || typeof db.collection !== 'function')) {
-    console.warn("Firestore offline persistence SKIPPED because the Firestore instance (db) is invalid.");
-}
+  // Enable Firestore persistence
+  if (typeof window !== 'undefined' && db && typeof db.collection === 'function') { 
+    enableIndexedDbPersistence(db)
+      .then(() => {
+        console.log("Firestore offline persistence enabled.");
+      })
+      .catch((err) => {
+        if (err.code === 'failed-precondition') {
+          console.warn("Firestore persistence failed (failed-precondition). This can happen if you have multiple tabs open or if persistence is already enabled. The app can still function but might not have full offline capabilities.");
+        } else if (err.code === 'unimplemented') {
+          console.warn("Firestore persistence failed (unimplemented). The current browser does not support all of the features required to enable persistence.");
+        } else {
+          console.error("Firestore persistence failed with error: ", err);
+        }
+      });
+  } else if (typeof window !== 'undefined' && (!db || typeof db.collection !== 'function')) {
+      console.warn("Firestore offline persistence SKIPPED because the Firestore instance (db) is invalid or not initialized.");
+  }
 
 
-try {
-  functions = getFunctions(app); // Initialize Cloud Functions
-} catch (error) {
-  console.error("Error initializing Firebase Functions:", error);
-   // @ts-ignore
-  functions = null;
+  try {
+    functions = getFunctions(app); 
+    console.log("Firebase Functions service initialized.");
+  } catch (functionsError: any) {
+    console.error("Error initializing Firebase Functions:", functionsError.message, functionsError.code, functionsError);
+    functions = null;
+  }
+} else {
+    console.error("CRITICAL: Firebase app object is null, cannot initialize Auth, Firestore, or Functions. Check initializeApp errors above.");
+    // @ts-ignore
+    auth = null; // Explicitly nullify if app is null
+    db = null;
+    functions = null;
 }
 
 
@@ -125,3 +141,4 @@ NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
 You can find these credentials in your Firebase project settings:
 Project Overview -> Project settings (gear icon) -> General tab -> Your apps -> Web app -> Firebase SDK snippet -> Config.
 */
+
