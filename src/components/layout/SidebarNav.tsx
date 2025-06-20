@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/items", label: "Items", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/other-income", label: "Other Income", icon: Landmark },
+  { href: "/revenue", label: "Revenue", icon: Landmark },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
   { 
@@ -44,6 +44,21 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
     return item.roles.includes(currentUser.role);
   };
 
+  const isActive = (itemHref: string) => {
+    if (pathname === itemHref) return true;
+    // More specific checks for parent routes
+    if (itemHref !== "/dashboard" && pathname.startsWith(itemHref + "/")) return true;
+     // Handle specific cases for settings and admin to avoid over-matching
+    if (itemHref === "/settings/business" && pathname.startsWith("/settings/business")) return true;
+    if (itemHref === "/settings/tax" && pathname.startsWith("/settings/tax")) return true;
+    if (itemHref === "/admin/users" && pathname.startsWith("/admin/users")) return true;
+    if (itemHref === "/revenue" && pathname.startsWith("/revenue")) return true;
+
+
+    return false;
+  };
+
+
   return (
     <nav className="flex-grow px-2 space-y-1">
       {navItems.filter(item => userCanView(item)).map((item) => (
@@ -53,16 +68,12 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
           className={cn(
             "group flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
             "hover:bg-primary-foreground hover:text-primary",
-            pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard" && !pathname.startsWith("/settings/") && !pathname.startsWith("/admin/") && !pathname.startsWith("/other-income")) || 
-            (pathname.startsWith(item.href) && item.href === "/settings/business" && !pathname.startsWith("/settings/tax")) || 
-            (pathname.startsWith(item.href) && item.href === "/settings/tax") || 
-            (pathname.startsWith(item.href) && item.href === "/admin/users") ||
-            (pathname.startsWith(item.href) && item.href === "/other-income")
+            isActive(item.href)
               ? "bg-primary text-primary-foreground shadow-md"
               : "text-foreground/80",
             collapsed ? "justify-center" : ""
           )}
-          aria-current={pathname.startsWith(item.href) ? "page" : undefined}
+          aria-current={isActive(item.href) ? "page" : undefined}
         >
           <item.icon className={cn("h-5 w-5", collapsed ? "" : "mr-3")} aria-hidden="true" />
           {!collapsed && <span>{item.label}</span>}
@@ -72,3 +83,4 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
     </nav>
   );
 }
+

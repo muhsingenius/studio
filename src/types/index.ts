@@ -156,16 +156,17 @@ export interface Payment {
   createdAt: Date; 
 }
 
-export interface OtherIncomeRecord {
+export interface RevenueRecord {
   id: string;
   businessId: string;
   dateReceived: Date;
-  source: string; // e.g., "Direct Sale", "Grant", "Commission", "Interest"
+  source: string; // e.g., "Direct Sale", "Grant", "Commission", "Service Rendered"
   description: string;
   amount: number;
   paymentMethod: PaymentMethod;
-  reference?: string;
+  reference?: string; // e.g., Transaction ID, Cheque No.
   notes?: string;
-  recordedBy: string; // User ID
+  recordedBy: string; // User ID of who recorded this revenue
   createdAt: Date;
 }
+
