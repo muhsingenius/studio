@@ -50,7 +50,7 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   total: number;
-  itemId?: string;
+  itemId?: string; // Link to Item.id if selected from inventory
 }
 
 export type InvoiceStatus = "Pending" | "Paid" | "Overdue" | "Partially Paid";
@@ -173,3 +173,38 @@ export interface RevenueRecord {
   createdAt: Date;
 }
 
+// Types for Direct Sales Module
+export interface DirectSaleItem {
+  id: string; // Unique ID for this line item within the sale
+  itemId?: string; // Optional: ID of the product/service from the 'items' collection
+  description: string; // Name/description of the item/service sold
+  quantity: number;
+  unitPrice: number;
+  total: number; // quantity * unitPrice
+}
+
+export interface DirectSale {
+  id: string; // Firestore document ID
+  saleNumber: string; // User-friendly sale identifier (e.g., SALE-2024-001)
+  businessId: string;
+  customerId?: string; // Optional: Link to a customer
+  customerName?: string; // Optional: Manually entered customer name if not linked
+  items: DirectSaleItem[];
+  subtotal: number;
+  taxDetails: { // Consistent with Invoice tax details for now
+    vatRate: number;
+    nhilRate: number;
+    getFundRate: number;
+    vatAmount: number;
+    nhilAmount: number;
+    getFundAmount: number;
+    totalTax: number;
+  };
+  totalAmount: number;
+  paymentMethod: PaymentMethod; // Payment is immediate for direct sales
+  paymentReference?: string; // Optional: Transaction ID, etc.
+  date: Date; // Date of the sale
+  notes?: string;
+  recordedBy: string; // UID of the user who recorded the sale
+  createdAt: Date; // Firestore server timestamp
+}

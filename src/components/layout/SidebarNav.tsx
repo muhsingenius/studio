@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart } from "lucide-react";
 import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/items", label: "Items", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/sales", label: "Direct Sales", icon: ShoppingCart },
   { href: "/revenue", label: "Revenue", icon: Landmark },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
@@ -53,6 +54,7 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
     if (itemHref === "/settings/tax" && pathname.startsWith("/settings/tax")) return true;
     if (itemHref === "/admin/users" && pathname.startsWith("/admin/users")) return true;
     if (itemHref === "/revenue" && pathname.startsWith("/revenue")) return true;
+    if (itemHref === "/sales" && pathname.startsWith("/sales")) return true;
 
 
     return false;
@@ -83,4 +85,3 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
     </nav>
   );
 }
-
