@@ -66,6 +66,8 @@ interface ItemFormProps {
   isSaving?: boolean;
 }
 
+const NO_CATEGORY_VALUE = "__NO_CATEGORY__";
+
 export default function ItemForm({ item, categories, onSave, setOpen, isSaving }: ItemFormProps) {
   const { control, register, handleSubmit, watch, formState: { errors }, setValue, getValues } = useForm<ItemFormInputs>({
     resolver: zodResolver(itemSchema),
@@ -133,7 +135,7 @@ export default function ItemForm({ item, categories, onSave, setOpen, isSaving }
                   name="type"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger id="type" aria-invalid={!!errors.type}>
                         <SelectValue placeholder="Select item type" />
                       </SelectTrigger>
@@ -166,12 +168,15 @@ export default function ItemForm({ item, categories, onSave, setOpen, isSaving }
                   name="categoryId"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      value={field.value || ""}
+                      onValueChange={(value) => field.onChange(value === NO_CATEGORY_VALUE ? "" : value)}
+                    >
                       <SelectTrigger id="categoryId">
                         <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
-                         <SelectItem value="">-- No Category --</SelectItem>
+                         <SelectItem value={NO_CATEGORY_VALUE}>-- No Category --</SelectItem>
                          {categories.map((cat) => (
                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                          ))}
@@ -301,3 +306,5 @@ export default function ItemForm({ item, categories, onSave, setOpen, isSaving }
     </DialogContent>
   );
 }
+
+    
