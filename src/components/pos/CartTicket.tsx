@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo } from 'react';
@@ -8,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Minus, Trash2 } from 'lucide-react';
+import LoadingSpinner from '../shared/LoadingSpinner';
 
 interface CartTicketProps {
   cartItems: CashSaleItem[];
@@ -122,8 +124,8 @@ export default function CartTicket({
             <span>Total</span>
             <span>GHS {totalAmount.toFixed(2)}</span>
           </div>
-          <Button size="lg" className="w-full h-12 text-lg" onClick={onFinalizeSale} disabled={isSaving}>
-            {isSaving ? "Processing..." : "Charge"}
+          <Button size="lg" className="w-full h-12 text-lg" onClick={onFinalizeSale} disabled={isSaving || cartItems.length === 0}>
+            {isSaving ? <LoadingSpinner /> : 'Checkout'}
           </Button>
         </CardFooter>
       )}

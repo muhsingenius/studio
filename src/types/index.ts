@@ -1,4 +1,5 @@
 
+
 export type Role = "Admin" | "Accountant" | "Sales" | "Staff";
 
 export interface User {
@@ -216,4 +217,5 @@ export interface CashSale {
   notes?: string;
   recordedBy: string; // UID of the user who recorded the sale
   createdAt: Date; // Firestore server timestamp
+  updatedAt?: Date; // Optional: For tracking updates
 }
