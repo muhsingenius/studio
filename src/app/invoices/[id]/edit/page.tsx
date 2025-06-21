@@ -7,7 +7,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import InvoiceForm, { type InvoiceFormInputs } from "@/components/invoices/InvoiceForm";
-import type { Customer, TaxSettings, Invoice, Item } from "@/types";
+import type { Customer, TaxSettings, Invoice, Item, Business } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { db } from "@/lib/firebase";
@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { generateInvoicePDF } from "@/lib/pdfGenerator";
 
 const defaultTaxSettings: TaxSettings = {
   vat: 0.15,
@@ -43,6 +44,7 @@ export default function EditInvoicePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,9 +68,16 @@ export default function EditInvoicePage() {
       setIsLoadingData(true);
       setError(null);
       try {
-        const invoiceDocRef = doc(db, "invoices", invoiceId);
-        const invoiceSnap = await getDoc(invoiceDocRef);
+        // Fetch all data in parallel
+        const [invoiceSnap, customerSnapshot, taxSettingsSnap, itemsSnapshot, businessSnap] = await Promise.all([
+          getDoc(doc(db, "invoices", invoiceId)),
+          getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
+          getDoc(doc(db, "settings", "taxConfiguration")),
+          getDocs(query(collection(db, "items"), orderBy("name", "asc"))),
+          getDoc(doc(db, "businesses", currentUser.businessId!))
+        ]);
 
+        // Process Invoice
         if (invoiceSnap.exists()) {
           const data = invoiceSnap.data();
           if (data.businessId !== currentUser.businessId) {
@@ -81,7 +90,7 @@ export default function EditInvoicePage() {
               ...data,
               dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
               dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
-              totalPaidAmount: data.totalPaidAmount || 0, // Ensure totalPaidAmount is present
+              totalPaidAmount: data.totalPaidAmount || 0,
               createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
             } as Invoice;
             setInvoice(fetchedInvoice);
@@ -91,9 +100,7 @@ export default function EditInvoicePage() {
           toast({ title: "Not Found", description: `Invoice with ID ${invoiceId} does not exist.`, variant: "destructive" });
         }
 
-        const customersCollectionRef = collection(db, "customers");
-        const customersQuery = query(customersCollectionRef, where("businessId", "==", currentUser.businessId), orderBy("name", "asc"));
-        const customerSnapshot = await getDocs(customersQuery);
+        // Process Customers
         const customersData = customerSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
@@ -101,17 +108,17 @@ export default function EditInvoicePage() {
         } as Customer));
         setCustomers(customersData);
 
-        const taxSettingsDocRef = doc(db, "settings", "taxConfiguration");
-        const taxSettingsSnap = await getDoc(taxSettingsDocRef);
-        if (taxSettingsSnap.exists()) {
-          setTaxSettings(taxSettingsSnap.data() as TaxSettings);
+        // Process Tax Settings
+        setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
+        
+        // Process Business Details
+        if (businessSnap.exists()) {
+            setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
         } else {
-          setTaxSettings(defaultTaxSettings);
+            toast({ title: "Warning", description: "Business details not found. PDF download may not work correctly.", variant: "destructive" });
         }
 
-        const itemsCollectionRef = collection(db, "items");
-        const itemsQuery = query(itemsCollectionRef, orderBy("name", "asc"));
-        const itemsSnapshot = await getDocs(itemsQuery);
+        // Process Items
         const itemsData = itemsSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
@@ -132,7 +139,7 @@ export default function EditInvoicePage() {
     fetchData();
   }, [invoiceId, router, toast, currentUser]);
 
-  const handleSaveInvoice = async (invoicePayload: Omit<Invoice, "id" | "createdAt">, _formData: InvoiceFormInputs) => {
+  const handleSaveInvoice = async (invoicePayload: Omit<Invoice, "id" | "createdAt">, _formData: InvoiceFormInputs, saveAndDownload = false) => {
     if (!invoice || !currentUser || !currentUser.businessId) {
       toast({ title: "Error", description: "Required data missing for update.", variant: "destructive" });
       return;
@@ -145,15 +152,28 @@ export default function EditInvoicePage() {
     setIsSaving(true);
     try {
       const invoiceDocRef = doc(db, "invoices", invoice.id);
-      // totalPaidAmount is not directly editable on this form, it's managed by payment recording.
-      // Ensure existing totalPaidAmount is preserved.
       const dataToUpdate = {
         ...invoicePayload,
-        totalPaidAmount: invoice.totalPaidAmount, // Preserve existing totalPaidAmount
+        totalPaidAmount: invoice.totalPaidAmount,
         updatedAt: serverTimestamp(),
       };
       await updateDoc(invoiceDocRef, dataToUpdate);
+
       toast({ title: "Invoice Updated", description: `Invoice ${invoicePayload.invoiceNumber} has been updated.` });
+
+      if (saveAndDownload) {
+          if (business) {
+              const finalInvoiceForPdf: Invoice = {
+                  ...invoice,
+                  ...invoicePayload,
+                  // id and createdAt are already in the `invoice` object
+              };
+              generateInvoicePDF(finalInvoiceForPdf, business);
+          } else {
+              toast({ title: "Cannot generate PDF", description: "Business details not found.", variant: "destructive" });
+          }
+      }
+
       router.push(`/invoices/${invoice.id}`);
     } catch (error) {
       console.error("Error updating invoice: ", error);

@@ -6,7 +6,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import InvoiceForm, { type InvoiceFormInputs } from "@/components/invoices/InvoiceForm";
-import type { Customer, TaxSettings, Invoice, Item } from "@/types";
+import type { Customer, TaxSettings, Invoice, Item, Business } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { generateInvoicePDF } from "@/lib/pdfGenerator";
 
 
 const defaultTaxSettings: TaxSettings = {
@@ -38,6 +39,7 @@ export default function NewInvoicePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
@@ -53,9 +55,15 @@ export default function NewInvoicePage() {
       }
       setIsLoadingData(true);
       try {
-        const customersCollectionRef = collection(db, "customers");
-        const customersQuery = query(customersCollectionRef, where("businessId", "==", currentUser.businessId), orderBy("name", "asc"));
-        const customerSnapshot = await getDocs(customersQuery);
+         // Fetch all data in parallel
+        const [customerSnapshot, taxSettingsSnap, itemsSnapshot, businessSnap] = await Promise.all([
+          getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
+          getDoc(doc(db, "settings", "taxConfiguration")),
+          getDocs(query(collection(db, "items"), orderBy("name", "asc"))),
+          getDoc(doc(db, "businesses", currentUser.businessId!))
+        ]);
+
+        // Process Customers
         const customersData = customerSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
@@ -63,18 +71,17 @@ export default function NewInvoicePage() {
         } as Customer));
         setCustomers(customersData);
 
-        const taxSettingsDocRef = doc(db, "settings", "taxConfiguration"); 
-        const taxSettingsSnap = await getDoc(taxSettingsDocRef);
-        if (taxSettingsSnap.exists()) {
-          setTaxSettings(taxSettingsSnap.data() as TaxSettings);
+        // Process Tax Settings
+        setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
+        
+        // Process Business Details
+        if (businessSnap.exists()) {
+            setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
         } else {
-          console.warn("Tax settings not found in Firestore, using default values.");
-          setTaxSettings(defaultTaxSettings);
+            toast({ title: "Warning", description: "Business details not found. PDF download may not work correctly.", variant: "destructive" });
         }
 
-        const itemsCollectionRef = collection(db, "items");
-        const itemsQuery = query(itemsCollectionRef, orderBy("name", "asc")); 
-        const itemsSnapshot = await getDocs(itemsQuery);
+        // Process Items
         const itemsData = itemsSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
@@ -100,7 +107,7 @@ export default function NewInvoicePage() {
     fetchData();
   }, [toast, currentUser]);
 
-  const handleSaveInvoice = async (invoicePayload: Omit<Invoice, "id" | "createdAt">, _formData: InvoiceFormInputs) => {
+  const handleSaveInvoice = async (invoicePayload: Omit<Invoice, "id" | "createdAt">, _formData: InvoiceFormInputs, saveAndDownload = false) => {
     if (!currentUser?.businessId) {
       toast({ title: "Error", description: "Business context is missing. Cannot save invoice.", variant: "destructive" });
       return;
@@ -117,8 +124,22 @@ export default function NewInvoicePage() {
       const docRef = await addDoc(collection(db, "invoices"), docToSave);
       toast({
         title: "Invoice Created",
-        description: `Invoice ${invoicePayload.invoiceNumber} (ID: ${docRef.id}) has been saved successfully.`,
+        description: `Invoice ${invoicePayload.invoiceNumber} has been saved successfully.`,
       });
+
+      if (saveAndDownload) {
+          if (business) {
+              const finalInvoiceForPdf: Invoice = {
+                  ...invoicePayload,
+                  id: docRef.id,
+                  createdAt: new Date(), // Use current date as an approximation for the server timestamp
+              };
+              generateInvoicePDF(finalInvoiceForPdf, business);
+          } else {
+              toast({ title: "Cannot generate PDF", description: "Business details not found. Please save them in settings.", variant: "destructive" });
+          }
+      }
+
       router.push("/invoices");
     } catch (error) {
       console.error("Error saving invoice: ", error);

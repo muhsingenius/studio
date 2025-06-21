@@ -39,7 +39,6 @@ const invoiceSchema = z.object({
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   notes: z.string().optional(),
   status: z.enum(["Pending", "Paid", "Overdue", "Partially Paid"]).default("Pending"),
-  // Removed paymentDate, paymentMethod, paymentReference from schema
   companyDetailsForAI: z.string().optional(),
   customerInformationForAI: z.string().optional(),
   optionalDataForAI: z.string().optional(),
@@ -52,7 +51,7 @@ interface InvoiceFormProps {
   customers: Customer[];
   taxSettings: TaxSettings;
   availableItems: Item[];
-  onSave: (data: Omit<Invoice, "id" | "createdAt">, formData: InvoiceFormInputs) => Promise<void>;
+  onSave: (data: Omit<Invoice, "id" | "createdAt">, formData: InvoiceFormInputs, saveAndDownload?: boolean) => Promise<void>;
   isSaving?: boolean;
   formMode?: "create" | "edit";
 }
@@ -71,6 +70,7 @@ const generateInvoiceNumber = async () => {
 export default function InvoiceForm({ invoice, customers, taxSettings, availableItems, onSave, isSaving, formMode = "create" }: InvoiceFormProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [saveAndDownload, setSaveAndDownload] = useState(false);
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
@@ -86,7 +86,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       items: invoice?.items.map(item => ({...item})) || [{ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString(), itemId: undefined }],
       notes: invoice?.notes || "",
       status: invoice?.status || "Pending",
-      // No direct payment fields in defaultValues
       companyDetailsForAI: "Ghana SME Tracker Inc.\nAccra, Ghana\nVAT Reg: X001234567",
       customerInformationForAI: invoice ? (customers.find(c => c.id === invoice.customerId)?.name || "") : "",
       optionalDataForAI: "",
@@ -105,11 +104,8 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
 
   const watchedItems = watch("items");
   const watchedCustomerId = watch("customerId");
-  // const watchedStatus = watch("status"); // Keep if needed for other logic, but payment details card is removed
 
   const isUserAdmin = currentUser?.role === "Admin";
-  // Updated locking logic: an invoice is considered "Paid" for locking purposes if its status is "Paid".
-  // Further refinement based on totalPaidAmount vs totalAmount might occur when payment recording is added.
   const isFormDisabledForPaid = formMode === 'edit' && invoice?.status === "Paid" && !isUserAdmin;
 
 
@@ -238,14 +234,19 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
         ...taxAmounts,
       },
       totalAmount: totalAmount,
-      totalPaidAmount: invoice?.totalPaidAmount || 0, // Initialize or carry over
+      totalPaidAmount: invoice?.totalPaidAmount || 0,
       status: data.status,
       dateIssued: data.dateIssued,
       dueDate: data.dueDate,
       notes: data.notes,
-      // Direct payment fields removed
     };
-    onSave(finalInvoiceDataToSend, data);
+    onSave(finalInvoiceDataToSend, data, saveAndDownload);
+    setSaveAndDownload(false); // Reset state after submission attempt
+  };
+
+  const handleSaveAndDownload = () => {
+    setSaveAndDownload(true);
+    handleSubmit(processSubmit)();
   };
 
   return (
@@ -399,8 +400,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             </Button>
           </div>
 
-          {/* Payment Details section removed */}
-
           {/* AI Autocompletion Section */}
           <Card className="bg-secondary/20 border-dashed">
             <CardHeader>
@@ -475,7 +474,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
                 <span className="font-medium">GHS {taxAmounts.nhilAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">GETFund ({ (taxSettings.getFund * 100).toFixed(1) }%):</span>
+                <span className="text-muted-foreground">GETFund ({ (taxSettings.getFundRate * 100).toFixed(1) }%):</span>
                 <span className="font-medium">GHS {taxAmounts.getFundAmount.toFixed(2)}</span>
               </div>
               <hr className="my-2 border-border" />
@@ -486,12 +485,18 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col md:flex-row justify-end gap-3 border-t pt-6">
-          <Button type="button" variant="outline" disabled={isSaving || isFormDisabledForPaid}>
+        <CardFooter className="flex flex-wrap justify-end gap-3 border-t pt-6">
+          <Button type="button" variant="outline" disabled={isSaving || isFormDisabledForPaid} className="w-full md:w-auto">
             <Printer className="mr-2 h-4 w-4" /> Print (Placeholder)
           </Button>
-          <Button type="button" variant="outline" disabled={isSaving || isFormDisabledForPaid}>
-            <Download className="mr-2 h-4 w-4" /> Download PDF (Placeholder)
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={handleSaveAndDownload} 
+            disabled={isSaving || isFormDisabledForPaid}
+            className="w-full md:w-auto"
+          >
+            <Download className="mr-2 h-4 w-4" /> Download PDF
           </Button>
           <Button type="submit" disabled={isSaving || (formMode ==='edit' && isFormDisabledForPaid && invoice?.status === 'Paid' && !isUserAdmin) } className="w-full md:w-auto">
             {isSaving ? <LoadingSpinner size={16} className="mr-2"/> : <Save className="mr-2 h-4 w-4" />}
