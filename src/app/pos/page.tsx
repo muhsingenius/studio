@@ -182,11 +182,10 @@ export default function POSPage() {
       const saleNumber = await generateSaleNumber();
       const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
-      const salePayload: Omit<CashSale, "id" | "createdAt" | "updatedAt"> = {
+      const salePayload: any = {
         saleNumber,
         businessId: currentUser.businessId,
         recordedBy: currentUser.id,
-        customerId: selectedCustomerId || undefined,
         customerName: selectedCustomer?.name || "Walk-in Customer",
         date: new Date(),
         items: cart,
@@ -201,6 +200,10 @@ export default function POSPage() {
         paymentMethod: details.paymentMethod,
         paymentReference: details.paymentReference,
       };
+
+      if (selectedCustomerId && selectedCustomerId !== "__NO_CUSTOMER__") {
+        salePayload.customerId = selectedCustomerId;
+      }
 
       await runTransaction(db, async (transaction) => {
         const cashSaleDocRef = doc(collection(db, "cashSales"));

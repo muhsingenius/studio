@@ -168,16 +168,14 @@ export default function CashSaleForm({
 
   const processSubmit: SubmitHandler<CashSaleFormInputs> = (data) => {
     let finalCustomerName = data.customerName;
-    if (data.customerId && data.customerId !== NO_CUSTOMER_SELECTED_VALUE) { // Check against special value
+    if (data.customerId && data.customerId !== NO_CUSTOMER_SELECTED_VALUE) {
         const selectedCustomer = customers.find(c => c.id === data.customerId);
         if (selectedCustomer) finalCustomerName = selectedCustomer.name;
-    } else if (!data.customerName) { // If no customerId and no manual name, default to "Walk-in Customer"
+    } else if (!data.customerName) {
         finalCustomerName = "Walk-in Customer";
     }
 
-
-    const finalSaleData: Omit<CashSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber"> = {
-      customerId: data.customerId === NO_CUSTOMER_SELECTED_VALUE ? undefined : data.customerId, // Set to undefined if "no customer"
+    const finalSaleData: any = {
       customerName: finalCustomerName,
       items: data.items.map(item => ({
         id: item.id,
@@ -200,6 +198,11 @@ export default function CashSaleForm({
       date: data.date,
       notes: data.notes,
     };
+
+    if (data.customerId) {
+      finalSaleData.customerId = data.customerId;
+    }
+    
     onSave(finalSaleData, data);
   };
 
