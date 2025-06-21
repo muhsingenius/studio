@@ -12,11 +12,11 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Item, ItemType } from "@/types";
+import type { Item, ItemType, ItemCategory } from "@/types";
 import { useEffect } from "react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils"; // Added missing import
+import { cn } from "@/lib/utils";
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
   { value: "inventory", label: "Inventory" },
@@ -31,7 +31,7 @@ const itemSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
   sku: z.string().optional(),
   description: z.string().optional(),
-  category: z.string().optional(),
+  categoryId: z.string().optional(),
   sellingPrice: z.coerce.number().positive({ message: "Selling price must be a positive number" }),
   costPrice: z.coerce.number().nonnegative({ message: "Cost price must be a non-negative number" }).optional().or(z.literal("")),
   unit: z.string().optional(),
@@ -60,12 +60,13 @@ type ItemFormInputs = z.infer<typeof itemSchema>;
 
 interface ItemFormProps {
   item?: Item | null;
+  categories: ItemCategory[];
   onSave: (data: Omit<Item, "id" | "createdAt" | "updatedAt">) => Promise<void>;
   setOpen: (open: boolean) => void;
   isSaving?: boolean;
 }
 
-export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormProps) {
+export default function ItemForm({ item, categories, onSave, setOpen, isSaving }: ItemFormProps) {
   const { control, register, handleSubmit, watch, formState: { errors }, setValue, getValues } = useForm<ItemFormInputs>({
     resolver: zodResolver(itemSchema),
     defaultValues: item ? {
@@ -79,7 +80,7 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
       name: "",
       sku: "",
       description: "",
-      category: "",
+      categoryId: "",
       sellingPrice: 0,
       costPrice: "",
       unit: "",
@@ -100,7 +101,6 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
     if (watchedType !== 'inventory') {
       setValue('trackInventory', false);
     } else {
-      // When switching to inventory, if it's a new item or trackInventory was explicitly false, set it to true
       if (!item || getValues('trackInventory') === false) {
         setValue('trackInventory', true);
       }
@@ -111,31 +111,7 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
   const showInventoryFields = watchedType === 'inventory' && watchedTrackInventory;
 
   const onSubmit: SubmitHandler<ItemFormInputs> = async (data) => {
-    const dataToSave: any = {
-        ...data,
-        trackInventory: data.type === 'inventory' ? data.trackInventory : false, 
-        costPrice: data.costPrice ? Number(data.costPrice) : undefined,
-        quantityOnHand: (data.type === 'inventory' && data.trackInventory && data.quantityOnHand !== undefined && data.quantityOnHand !== "") ? Number(data.quantityOnHand) : undefined,
-        reorderLevel: (data.type === 'inventory' && data.trackInventory && data.reorderLevel !== undefined && data.reorderLevel !== "") ? Number(data.reorderLevel) : undefined,
-    };
-    
-    Object.keys(dataToSave).forEach(key => {
-        const typedKey = key as keyof typeof dataToSave;
-        if (dataToSave[typedKey] === "" && 
-            (key === 'sku' || key === 'description' || key === 'category' || key === 'costPrice' || key === 'unit' ||
-             key === 'reorderLevel' || key === 'warehouse' || key === 'batchOrSerialNo' || key === 'taxCode' || key === 'quantityOnHand')) {
-            delete dataToSave[typedKey];
-        }
-    });
-    
-    if (dataToSave.type !== 'inventory' || !dataToSave.trackInventory) {
-        delete dataToSave.quantityOnHand;
-        delete dataToSave.reorderLevel;
-        delete dataToSave.warehouse;
-        delete dataToSave.batchOrSerialNo;
-    }
-
-    await onSave(dataToSave as Omit<Item, "id" | "createdAt" | "updatedAt">);
+    await onSave(data as Omit<Item, "id" | "createdAt" | "updatedAt">);
   };
 
   return (
@@ -184,10 +160,25 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
                 <Input id="sku" {...register("sku")} />
                 {errors.sku && <p className="text-sm text-destructive mt-1">{errors.sku.message}</p>}
               </div>
-              <div>
-                <Label htmlFor="category">Category</Label>
-                <Input id="category" {...register("category")} placeholder="e.g., Electronics, Apparel, Consulting" />
-                {errors.category && <p className="text-sm text-destructive mt-1">{errors.category.message}</p>}
+               <div>
+                <Label htmlFor="categoryId">Category</Label>
+                <Controller
+                  name="categoryId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <SelectTrigger id="categoryId">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                         <SelectItem value="">-- No Category --</SelectItem>
+                         {categories.map((cat) => (
+                           <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                         ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             </div>
             
@@ -310,5 +301,3 @@ export default function ItemForm({ item, onSave, setOpen, isSaving }: ItemFormPr
     </DialogContent>
   );
 }
-
-    

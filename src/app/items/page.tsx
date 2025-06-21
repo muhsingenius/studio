@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PlusCircle, Edit, Trash2, Search, Package as ItemIcon } from "lucide-react";
-import type { Item } from "@/types";
+import type { Item, ItemCategory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -40,10 +40,13 @@ import {
   orderBy,
   Timestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,13 +54,24 @@ export default function ItemsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
-    setIsLoading(true);
-    const itemsCollectionRef = collection(db, "items");
-    const q = query(itemsCollectionRef, orderBy("createdAt", "desc"));
+    if (!currentUser?.businessId) {
+      setIsLoading(false);
+      return;
+    }
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    setIsLoading(true);
+
+    // Fetch Items
+    const itemsCollectionRef = collection(db, "items");
+    const itemsQuery = query(
+      itemsCollectionRef,
+      where("businessId", "==", currentUser.businessId),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribeItems = onSnapshot(itemsQuery, (querySnapshot) => {
       const itemsData = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         return {
@@ -68,15 +82,37 @@ export default function ItemsPage() {
         } as Item;
       });
       setItems(itemsData);
-      setIsLoading(false);
+      if (isLoading) setIsLoading(false); // Set loading to false after first fetch
     }, (error) => {
       console.error("Error fetching items: ", error);
       toast({ title: "Error", description: "Could not fetch items.", variant: "destructive" });
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [toast]);
+    // Fetch Categories
+    const categoriesCollectionRef = collection(db, "itemCategories");
+    const categoriesQuery = query(
+        categoriesCollectionRef,
+        where("businessId", "==", currentUser.businessId),
+        orderBy("name", "asc")
+    );
+    const unsubscribeCategories = onSnapshot(categoriesQuery, (querySnapshot) => {
+        const categoriesData = querySnapshot.docs.map(docSnapshot => ({
+            id: docSnapshot.id,
+            ...docSnapshot.data(),
+        } as ItemCategory));
+        setCategories(categoriesData);
+    }, (error) => {
+        console.error("Error fetching categories: ", error);
+        toast({ title: "Error", description: "Could not fetch item categories.", variant: "destructive" });
+    });
+
+
+    return () => {
+        unsubscribeItems();
+        unsubscribeCategories();
+    };
+  }, [currentUser, toast]);
 
   const handleAddItem = () => {
     setSelectedItem(null);
@@ -89,27 +125,20 @@ export default function ItemsPage() {
   };
 
   const handleSaveItem = async (data: Omit<Item, "id" | "createdAt" | "updatedAt">) => {
+    if (!currentUser?.businessId) {
+      toast({ title: "Error", description: "Business context is missing.", variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
-    const dataToSave: any = { ...data };
+    const dataToSave: any = { ...data, businessId: currentUser.businessId };
 
-    // Omit optional fields if they are empty strings
+    // Clean up optional fields
     Object.keys(dataToSave).forEach(key => {
         const typedKey = key as keyof typeof dataToSave;
-        if (dataToSave[typedKey] === "" && 
-            (key === 'sku' || key === 'description' || key === 'category' || key === 'costPrice' || key === 'unit' ||
-             key === 'reorderLevel' || key === 'warehouse' || key === 'batchOrSerialNo' || key === 'taxCode')) {
+        if (dataToSave[typedKey] === "" || dataToSave[typedKey] === undefined) {
             delete dataToSave[typedKey];
         }
     });
-    
-    // Conditionally omit inventory fields if not tracking
-    if (!data.trackInventory && data.type !== 'inventory') {
-        delete dataToSave.quantityOnHand;
-        delete dataToSave.reorderLevel;
-        delete dataToSave.warehouse;
-        delete dataToSave.batchOrSerialNo;
-    }
-
 
     try {
       if (selectedItem) {
@@ -192,60 +221,63 @@ export default function ItemsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead className="text-right">Selling Price (GHS)</TableHead>
-                    <TableHead>Unit</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!isLoading && filteredItems.length > 0 ? (
-                    filteredItems.map((item) => (
-                      <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell><Badge variant="outline" className="capitalize">{item.type}</Badge></TableCell>
-                        <TableCell>{item.sku || "N/A"}</TableCell>
-                        <TableCell className="text-right">{item.sellingPrice.toFixed(2)}</TableCell>
-                        <TableCell>{item.unit || "N/A"}</TableCell>
-                        <TableCell>
-                          <Badge variant={item.isActive ? "default" : "secondary"}>
-                            {item.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)} title="Edit Item" disabled={isSaving || isDeleting}>
-                            <Edit className="h-4 w-4 text-blue-600" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" title="Delete Item" disabled={isSaving || isDeleting}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete the item "{item.name}".
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteItem(item.id)}
-                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                  disabled={isDeleting}
-                                >
-                                  {isDeleting ? <LoadingSpinner size={16} /> : "Delete"}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    filteredItems.map((item) => {
+                      const categoryName = item.categoryId ? categories.find(c => c.id === item.categoryId)?.name : "N/A";
+                      return (
+                        <TableRow key={item.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell className="font-medium">{item.name}</TableCell>
+                          <TableCell>{categoryName}</TableCell>
+                          <TableCell><Badge variant="outline" className="capitalize">{item.type}</Badge></TableCell>
+                          <TableCell>{item.sku || "N/A"}</TableCell>
+                          <TableCell className="text-right">{item.sellingPrice.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Badge variant={item.isActive ? "default" : "secondary"}>
+                              {item.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right space-x-1">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)} title="Edit Item" disabled={isSaving || isDeleting}>
+                              <Edit className="h-4 w-4 text-blue-600" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" title="Delete Item" disabled={isSaving || isDeleting}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the item "{item.name}".
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                    disabled={isDeleting}
+                                  >
+                                    {isDeleting ? <LoadingSpinner size={16} /> : "Delete"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   ) : (
                     !isLoading && (
                       <TableRow>
@@ -266,6 +298,7 @@ export default function ItemsPage() {
           {isFormOpen && (
             <ItemForm
               item={selectedItem}
+              categories={categories}
               onSave={handleSaveItem}
               setOpen={setIsFormOpen}
               isSaving={isSaving}

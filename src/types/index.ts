@@ -22,13 +22,20 @@ export interface Customer {
 
 export type ItemType = 'inventory' | 'non-inventory' | 'service' | 'digital' | 'bundle';
 
+export interface ItemCategory {
+  id: string;
+  name: string;
+  businessId: string;
+  createdAt: Date;
+}
+
 export interface Item {
   id: string;
   type: ItemType;
   name: string;
   sku?: string;
   description?: string;
-  category?: string;
+  categoryId?: string;
   sellingPrice: number;
   costPrice?: number;
   unit?: string;

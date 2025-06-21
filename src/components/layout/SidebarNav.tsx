@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes } from "lucide-react";
 import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
     icon: Briefcase 
   },
   { href: "/settings/tax", label: "Tax Setup", icon: Settings, roles: ["Admin", "Accountant"] },
+  { href: "/settings/categories", label: "Item Categories", icon: Shapes, roles: ["Admin", "Accountant"] },
   { href: "/admin/users", label: "User Management", icon: ShieldCheck, roles: ["Admin"] },
 ];
 
@@ -52,6 +53,7 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
      // Handle specific cases for settings and admin to avoid over-matching
     if (itemHref === "/settings/business" && pathname.startsWith("/settings/business")) return true;
     if (itemHref === "/settings/tax" && pathname.startsWith("/settings/tax")) return true;
+    if (itemHref === "/settings/categories" && pathname.startsWith("/settings/categories")) return true;
     if (itemHref === "/admin/users" && pathname.startsWith("/admin/users")) return true;
     if (itemHref === "/revenue" && pathname.startsWith("/revenue")) return true;
     if (itemHref === "/sales" && pathname.startsWith("/sales")) return true;
