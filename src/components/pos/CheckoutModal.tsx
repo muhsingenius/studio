@@ -61,6 +61,17 @@ export default function CheckoutModal({
     }
     return tendered - totalAmount;
   }, [selectedPaymentMethod, amountTendered, totalAmount]);
+  
+  const saleChangeDue = useMemo(() => {
+    if (lastSale?.paymentMethod === 'Cash' && lastSale?.totalAmount > 0) {
+        // We don't have amount tendered on the lastSale object, so we recalculate
+        // This assumes the amount tendered was correctly entered before saving.
+        // For simplicity, we re-use the `changeDue` state from the previous screen.
+        return changeDue;
+    }
+    return 0;
+  }, [lastSale, changeDue]);
+
 
   const handleConfirm = () => {
     if (selectedPaymentMethod) {
@@ -75,16 +86,6 @@ export default function CheckoutModal({
   const canConfirm = selectedPaymentMethod && (!isCash || (isCash && parseFloat(amountTendered) >= totalAmount));
 
   if (lastSale) {
-    const saleChangeDue = useMemo(() => {
-        if (lastSale.paymentMethod === 'Cash' && lastSale.totalAmount > 0) {
-            // We don't have amount tendered on the lastSale object, so we recalculate
-            // This assumes the amount tendered was correctly entered before saving.
-            // For simplicity, we re-use the `changeDue` state from the previous screen.
-            return changeDue;
-        }
-        return 0;
-    }, [lastSale, changeDue]);
-
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onNewSale()}>
         <DialogContent>
