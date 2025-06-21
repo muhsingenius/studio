@@ -3,28 +3,41 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Item } from '@/types';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import type { Item, ItemCategory } from '@/types';
 import { Search } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ItemCatalogProps {
   items: Item[];
+  categories: ItemCategory[];
+  selectedCategoryId: string | null;
+  onSelectCategory: (categoryId: string | null) => void;
   onAddItem: (item: Item) => void;
   disabled?: boolean;
 }
 
-export default function ItemCatalog({ items, onAddItem, disabled }: ItemCatalogProps) {
+export default function ItemCatalog({ items, categories, selectedCategoryId, onSelectCategory, onAddItem, disabled }: ItemCatalogProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredItems = useMemo(() => {
-    if (!searchTerm) {
-      return items;
+    let categoryFiltered = items;
+
+    // 1. Filter by category
+    if (selectedCategoryId) {
+      categoryFiltered = items.filter(item => item.categoryId === selectedCategoryId);
     }
-    return items.filter(item =>
+
+    // 2. Filter by search term
+    if (!searchTerm) {
+      return categoryFiltered;
+    }
+    
+    return categoryFiltered.filter(item =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-  }, [items, searchTerm]);
+  }, [items, searchTerm, selectedCategoryId]);
 
   return (
     <Card className="flex flex-col h-full">
@@ -41,9 +54,29 @@ export default function ItemCatalog({ items, onAddItem, disabled }: ItemCatalogP
           />
         </div>
       </CardHeader>
-      <CardContent className="flex-grow p-0 overflow-hidden">
+      
+      <div className="px-6">
+        <Tabs
+          value={selectedCategoryId || "all"}
+          onValueChange={(value) => onSelectCategory(value === "all" ? null : value)}
+        >
+          <ScrollArea className="w-full whitespace-nowrap pb-2">
+            <TabsList className="inline-flex h-9">
+              <TabsTrigger value="all">All</TabsTrigger>
+              {categories.map((category) => (
+                <TabsTrigger key={category.id} value={category.id}>
+                  {category.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </Tabs>
+      </div>
+
+      <CardContent className="flex-grow p-0 overflow-hidden pt-2">
         <ScrollArea className="h-full">
-            <div className="p-4 pt-0 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="p-4 pt-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {filteredItems.map(item => (
                 <button
                     key={item.id}
@@ -58,7 +91,7 @@ export default function ItemCatalog({ items, onAddItem, disabled }: ItemCatalogP
             ))}
              {filteredItems.length === 0 && (
                 <div className="col-span-full text-center text-muted-foreground py-10">
-                    <p>No items match your search.</p>
+                    <p>No items match your search or category.</p>
                 </div>
             )}
             </div>

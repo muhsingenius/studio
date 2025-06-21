@@ -20,7 +20,7 @@ import {
   Timestamp,
   where,
 } from "firebase/firestore";
-import type { Item, Customer, TaxSettings, CashSaleItem } from "@/types";
+import type { Item, Customer, TaxSettings, CashSaleItem, ItemCategory } from "@/types";
 
 const defaultTaxSettings: TaxSettings = {
   vat: 0.15,
@@ -35,11 +35,13 @@ export default function POSPage() {
 
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [cart, setCart] = useState<CashSaleItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -51,9 +53,10 @@ export default function POSPage() {
     setIsLoading(true);
     try {
       // Fetch all required data in parallel
-      const [itemsSnap, customersSnap, taxSettingsSnap] = await Promise.all([
+      const [itemsSnap, customersSnap, categoriesSnap, taxSettingsSnap] = await Promise.all([
         getDocs(query(collection(db, "items"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
         getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
+        getDocs(query(collection(db, "itemCategories"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
         getDoc(doc(db, "settings", "taxConfiguration")),
       ]);
 
@@ -62,12 +65,15 @@ export default function POSPage() {
 
       const customersData = customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
       setCustomers(customersData);
+      
+      const categoriesData = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemCategory));
+      setCategories(categoriesData);
 
       setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
 
     } catch (error) {
       console.error("Error fetching POS data:", error);
-      toast({ title: "Error Loading Data", description: "Could not load items or customers.", variant: "destructive" });
+      toast({ title: "Error Loading Data", description: "Could not load items, customers, or categories.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +157,14 @@ export default function POSPage() {
         />
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 h-[calc(100vh-200px)]">
           <div className="lg:col-span-3 h-full">
-            <ItemCatalog items={availableItems} onAddItem={handleAddItemToCart} disabled={isSaving} />
+            <ItemCatalog
+              items={availableItems}
+              categories={categories}
+              selectedCategoryId={selectedCategoryId}
+              onSelectCategory={setSelectedCategoryId}
+              onAddItem={handleAddItemToCart}
+              disabled={isSaving}
+            />
           </div>
           <div className="lg:col-span-2 h-full">
              <CartTicket
