@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes, MonitorSmartphone } from "lucide-react";
 import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { href: "/items", label: "Items", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/sales", label: "Cash Sales", icon: ShoppingCart },
+  { href: "/pos", label: "POS", icon: MonitorSmartphone, roles: ["Admin", "Sales"] },
   { href: "/revenue", label: "Revenue", icon: Landmark },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
@@ -57,6 +58,7 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
     if (itemHref === "/admin/users" && pathname.startsWith("/admin/users")) return true;
     if (itemHref === "/revenue" && pathname.startsWith("/revenue")) return true;
     if (itemHref === "/sales" && pathname.startsWith("/sales")) return true;
+    if (itemHref === "/pos" && pathname.startsWith("/pos")) return true;
 
 
     return false;
