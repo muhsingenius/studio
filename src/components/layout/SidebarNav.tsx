@@ -48,20 +48,15 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
   };
 
   const isActive = (itemHref: string) => {
-    if (pathname === itemHref) return true;
-    // More specific checks for parent routes
-    if (itemHref !== "/dashboard" && pathname.startsWith(itemHref + "/")) return true;
-     // Handle specific cases for settings and admin to avoid over-matching
-    if (itemHref === "/settings/business" && pathname.startsWith("/settings/business")) return true;
-    if (itemHref === "/settings/tax" && pathname.startsWith("/settings/tax")) return true;
-    if (itemHref === "/settings/categories" && pathname.startsWith("/settings/categories")) return true;
-    if (itemHref === "/admin/users" && pathname.startsWith("/admin/users")) return true;
-    if (itemHref === "/revenue" && pathname.startsWith("/revenue")) return true;
-    if (itemHref === "/sales" && pathname.startsWith("/sales")) return true;
-    if (itemHref === "/pos" && pathname.startsWith("/pos")) return true;
-
-
-    return false;
+    if (pathname === itemHref) {
+      return true;
+    }
+    // Prevent /dashboard from matching child routes if any were ever added
+    if (itemHref === "/dashboard") {
+      return false;
+    }
+    // Match parent routes, e.g. /invoices for /invoices/new
+    return pathname.startsWith(`${itemHref}/`);
   };
 
 
