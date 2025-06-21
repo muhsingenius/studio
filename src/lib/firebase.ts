@@ -7,8 +7,6 @@ import { getFunctions, type Functions } from "firebase/functions";
 
 // Your web app's Firebase configuration
 // IMPORTANT: These values are read from the .env file.
-// Make sure you have a .env file in the root of your project
-// and that it contains your actual Firebase project credentials.
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -19,12 +17,12 @@ export const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app: FirebaseApp | null = null; // Initialize app as null
-let auth: Auth | null = null; // Initialize auth as null
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
 let db: Firestore | null = null;
 let functions: Functions | null = null;
 
-if (typeof window !== 'undefined') { // Ensure this only runs on the client-side
+if (typeof window !== 'undefined') {
   console.log("Attempting Firebase initialization with effective config:", JSON.stringify({
     ...firebaseConfig,
     apiKey: firebaseConfig.apiKey ? "<REDACTED>" : "MISSING_API_KEY",
@@ -72,43 +70,38 @@ if (app) {
   }
 
   try {
-    console.log("Calling getFirestore(app)...");
     db = getFirestore(app);
-    console.log("Firestore service initialized via getFirestore(app). Firestore instance:", db ? "Instance created" : "Instance IS NULL");
-    if (!db || typeof db.collection !== 'function') {
-      console.error(
-        "CRITICAL: Firestore instance (db) appears to be invalid AFTER getFirestore() call. " +
-        "This strongly suggests a problem with the Firebase configuration (check .env variables like NEXT_PUBLIC_FIREBASE_PROJECT_ID), " +
-        "that Firestore service is not properly enabled for your project in the Firebase console, " +
-        "OR a network issue/Firebase service problem is preventing proper initialization. " +
-        "Please verify ALL NEXT_PUBLIC_FIREBASE_... variables, check your Firebase project setup in the console, and ensure your network connection to Firebase services is stable."
-      );
-      db = null; // Ensure db is null if invalid
-    } else {
-      console.log("Firestore instance (db) seems valid (has a collection method).");
-      if (typeof window !== 'undefined') {
-        enableIndexedDbPersistence(db)
-          .then(() => {
-            console.log("Firestore offline persistence enabled.");
-          })
-          .catch((err) => {
-            if (err.code === 'failed-precondition') {
-              console.warn("Firestore persistence failed (failed-precondition). This can happen if you have multiple tabs open or if persistence is already enabled.");
-            } else if (err.code === 'unimplemented') {
-              console.warn("Firestore persistence failed (unimplemented). The current browser does not support all of the features required to enable persistence.");
-            } else {
-              console.error("Firestore persistence failed with error: ", err);
-            }
-          });
-      }
+    // A simple check to see if the Firestore object is valid
+    if (typeof db.collection !== 'function') {
+        throw new Error("Firestore object is not valid. The 'collection' method is missing.");
+    }
+    console.log("Firestore service initialized successfully.");
+    if (typeof window !== 'undefined') {
+      enableIndexedDbPersistence(db)
+        .then(() => {
+          console.log("Firestore offline persistence enabled.");
+        })
+        .catch((err) => {
+          if (err.code === 'failed-precondition') {
+            console.warn("Firestore persistence failed (failed-precondition). This can happen if you have multiple tabs open.");
+          } else if (err.code === 'unimplemented') {
+            console.warn("Firestore persistence failed (unimplemented). The current browser does not support this feature.");
+          } else {
+            console.error("Firestore persistence failed with error: ", err);
+          }
+        });
     }
   } catch (firestoreError: any) {
-    console.error("CRITICAL_FIRESTORE_INIT_ERROR: Error explicitly thrown by getFirestore(app):", firestoreError.message, firestoreError.code, firestoreError);
-    console.error(
-        "This could be due to issues like Firestore not being enabled in your Firebase project console, " +
-        "incorrect Firebase project configuration (check .env variables), " +
-        "or network issues preventing SDK initialization. Please verify your Firebase project setup and network connectivity."
-    );
+    console.error("--------------------------------------------------------------------");
+    console.error("CRITICAL FIRESTORE INITIALIZATION FAILED");
+    console.error("MESSAGE:", firestoreError.message);
+    console.error("This means the app cannot connect to the database.");
+    console.error("TROUBLESHOOTING STEPS:");
+    console.error("1. Go to your login page. A diagnostic panel is displayed at the top.");
+    console.error("2. Check if the 'Firebase Project ID' shown in the panel is CORRECT.");
+    console.error("3. If it's missing or wrong, correct the NEXT_PUBLIC_FIREBASE_PROJECT_ID variable in your .env file and RESTART your server.");
+    console.error("4. If the ID is correct, ensure you have CREATED a Firestore Database in your Firebase project console for the correct region.");
+    console.error("--------------------------------------------------------------------");
     db = null;
   }
 
@@ -127,24 +120,3 @@ if (app) {
 }
 
 export { app, auth, db, functions };
-
-/*
-Instructions for setting up Firebase environment variables:
-
-1. Create a file named `.env` in the root of your project (if it doesn't exist).
-2. Add the following lines to `.env`, replacing the placeholder values with your actual Firebase project credentials:
-
-NEXT_PUBLIC_FIREBASE_API_KEY="YOUR_API_KEY"
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="YOUR_AUTH_DOMAIN"
-NEXT_PUBLIC_FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="YOUR_STORAGE_BUCKET"
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="YOUR_MESSAGING_SENDER_ID"
-NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
-
-3. Make sure `.env` is included in your `.gitignore` file if it contains sensitive real credentials
-   and you plan to commit this project to a public repository. For Firebase Studio, this file will be managed.
-4. **IMPORTANT: After creating or modifying the .env file, you MUST restart your Next.js development server for the changes to be applied.**
-
-You can find these credentials in your Firebase project settings:
-Project Overview -> Project settings (gear icon) -> General tab -> Your apps -> Web app -> Firebase SDK snippet -> Config.
-*/

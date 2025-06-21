@@ -27,6 +27,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        
+        // If db is not initialized, we can't fetch the user profile from Firestore.
+        // The app will continue with basic auth info but will be in a degraded state.
+        if (!db) {
+          console.error("AuthContext: Firestore (db) is not initialized. Cannot fetch user profile. Please fix your Firebase configuration in .env and restart the server.");
+          setCurrentUser({
+              id: fbUser.uid,
+              email: fbUser.email,
+              name: fbUser.displayName,
+              role: "Staff", // Default/fallback role
+          });
+          setLoading(false);
+          return;
+        }
+
         console.log(`AuthContext: Auth state changed. User UID: ${fbUser.uid}. Attempting to fetch profile.`);
         const userDocRef = doc(db, "users", fbUser.uid);
         try {
@@ -48,8 +63,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (error: any) {
           console.warn(`AuthContext: Error fetching user document for UID ${fbUser.uid}:`, error.message, error.code, error);
-          // If Firestore fetch fails but Firebase Auth user (fbUser) exists,
-          // set a basic currentUser to allow navigation and app usage with potentially limited data.
           if (fbUser) {
             console.warn(`AuthContext: User profile for UID ${fbUser.uid} could not be fetched from Firestore due to error. Using basic profile from Auth state.`);
             setCurrentUser({
@@ -59,7 +72,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               role: "Staff", // Default role if profile is inaccessible
             });
           } else {
-            // This case should be rare if fbUser was initially present, but as a fallback:
             setCurrentUser(null); 
           }
         }
@@ -84,7 +96,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       router.push("/login"); // Redirect to login after logout
     } catch (error: any)      {
       console.error("AuthContext: Error logging out:", error.message, error.code, error);
-      // Handle logout error (e.g., show a toast)
     } finally {
       setLoading(false);
     }
@@ -107,4 +118,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
