@@ -9,8 +9,8 @@ import PageHeader from "@/components/shared/PageHeader";
 import InvoiceDetailsDisplay from "@/components/invoices/InvoiceDetailsDisplay";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Edit, DollarSign } from "lucide-react";
-import type { Invoice, Payment, InvoiceStatus, Item as ProductItem, InvoiceItem } from "@/types";
+import { ArrowLeft, Edit, DollarSign, FileDown } from "lucide-react";
+import type { Invoice, Payment, InvoiceStatus, Item as ProductItem, InvoiceItem, Business } from "@/types";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import PaymentForm, { type PaymentFormInputs } from "@/components/payments/PaymentForm";
 import { isPast } from "date-fns";
+import { generateInvoicePDF } from "@/lib/pdfGenerator";
 
 export default function ViewInvoicePage() {
   const params = useParams();
@@ -41,6 +42,7 @@ export default function ViewInvoicePage() {
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -59,6 +61,15 @@ export default function ViewInvoicePage() {
     setIsLoading(true);
     setError(null);
     try {
+      // Fetch Business Details first
+      const businessDocRef = doc(db, "businesses", currentUser.businessId);
+      const businessSnap = await getDoc(businessDocRef);
+      if (businessSnap.exists()) {
+        setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
+      } else {
+        toast({ title: "Warning", description: "Business details not found. PDF download may not work correctly.", variant: "destructive" });
+      }
+
       const invoiceDocRef = doc(db, "invoices", invoiceId);
       const invoiceSnap = await getDoc(invoiceDocRef);
 
@@ -221,6 +232,13 @@ export default function ViewInvoicePage() {
     }
   };
 
+  const handleDownloadPdf = () => {
+    if (invoice && business) {
+        generateInvoicePDF(invoice, business);
+    } else {
+        toast({ title: "Error", description: "Invoice or business data is not available.", variant: "destructive" });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -254,6 +272,12 @@ export default function ViewInvoicePage() {
                 <Button onClick={() => router.push(`/invoices/${invoice.id}/edit`)}>
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Invoice
+                </Button>
+              )}
+              {invoice && business && (
+                <Button onClick={handleDownloadPdf} variant="outline">
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Download PDF
                 </Button>
               )}
             </div>

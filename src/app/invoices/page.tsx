@@ -8,7 +8,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Edit, Trash2, Search, Eye as ViewIcon, FileDown } from "lucide-react";
 import Link from "next/link";
-import type { Invoice, InvoiceStatus } from "@/types";
+import type { Invoice, InvoiceStatus, Business } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -37,10 +37,12 @@ import {
   query,
   orderBy,
   Timestamp,
-  where
+  where,
+  getDoc
 } from "firebase/firestore";
 import { useRouter } from "next/navigation"; 
 import { useAuth } from "@/contexts/AuthContext";
+import { generateInvoicePDF } from "@/lib/pdfGenerator";
 
 const getDerivedStatus = (invoice: Invoice): InvoiceStatus => {
   const outstandingAmount = invoice.totalAmount - (invoice.totalPaidAmount || 0);
@@ -69,6 +71,7 @@ const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "des
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [business, setBusiness] = useState<Business | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -84,6 +87,18 @@ export default function InvoicesPage() {
     }
 
     setIsLoading(true);
+
+    const fetchBusinessDetails = async () => {
+        const businessDocRef = doc(db, "businesses", currentUser!.businessId!);
+        const businessSnap = await getDoc(businessDocRef);
+        if (businessSnap.exists()) {
+            setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
+        } else {
+            toast({ title: "Warning", description: "Business details not found. PDF download may fail.", variant: "destructive" });
+        }
+    };
+    fetchBusinessDetails();
+
     const invoicesCollectionRef = collection(db, "invoices");
     const q = query(
       invoicesCollectionRef, 
@@ -129,6 +144,14 @@ export default function InvoicesPage() {
       toast({ title: "Error", description: "Could not delete invoice.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleDownloadPdf = (invoice: Invoice) => {
+    if (business) {
+        generateInvoicePDF(invoice, business);
+    } else {
+        toast({ title: "Error", description: "Business data is not available to generate PDF.", variant: "destructive" });
     }
   };
 
@@ -238,7 +261,8 @@ export default function InvoicesPage() {
                           variant="ghost" 
                           size="icon" 
                           title="Download PDF"
-                          onClick={(e) => { e.stopPropagation(); toast({ title: "Coming Soon", description: "PDF download will be available soon."}) }}
+                          onClick={(e) => { e.stopPropagation(); handleDownloadPdf(invoice); }}
+                          disabled={!business}
                         >
                             <FileDown className="h-4 w-4 text-gray-600" />
                         </Button>
