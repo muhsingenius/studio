@@ -115,3 +115,24 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--primary));
 }
+
+/* Print-specific styles */
+@media print {
+  /* Hide everything on the page */
+  body > * {
+    visibility: hidden;
+  }
+
+  /* Make the receipt container and everything inside it visible */
+  #thermal-receipt-container, #thermal-receipt-container * {
+    visibility: visible;
+  }
+
+  /* Position the receipt at the top-left corner of the page */
+  #thermal-receipt-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

@@ -1,0 +1,114 @@
+.thermal-receipt {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #000;
+  background-color: #fff;
+  padding: 10px;
+  width: 280px; /* Approx 80mm width */
+  box-sizing: border-box;
+}
+
+.receipt-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.receipt-header h1 {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 5px 0;
+  padding: 0;
+}
+
+.receipt-header p {
+  font-size: 10px;
+  margin: 0;
+}
+
+.receipt-logo {
+  max-width: 120px;
+  max-height: 60px;
+  margin: 0 auto 5px auto;
+}
+
+.receipt-separator {
+  border: none;
+  border-top: 1px dashed #000;
+  margin: 8px 0;
+}
+
+.receipt-info p, .receipt-payment p {
+  margin: 1px 0;
+}
+
+.thermal-receipt table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.thermal-receipt th,
+.thermal-receipt td {
+  padding: 2px 0;
+  vertical-align: top;
+}
+
+.thermal-receipt thead th {
+  text-align: left;
+  border-bottom: 1px solid #000;
+  font-weight: bold;
+}
+.thermal-receipt thead th:nth-child(2) {
+  text-align: center;
+}
+.thermal-receipt thead th:last-child {
+  text-align: right;
+}
+
+.thermal-receipt tbody td:nth-child(2) {
+  text-align: center;
+}
+.thermal-receipt tbody td:last-child {
+  text-align: right;
+}
+
+.receipt-totals {
+  margin-top: 10px;
+}
+
+.receipt-totals p {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0;
+}
+
+.receipt-totals p.total {
+  font-weight: bold;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.receipt-footer {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 10px;
+}
+
+/* Specific styles for printing */
+@page {
+  margin: 0;
+  size: 80mm auto; /* Target 80mm wide thermal printers */
+}
+
+@media print {
+  body {
+    margin: 0;
+  }
+  .thermal-receipt {
+    width: 100%;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
+}

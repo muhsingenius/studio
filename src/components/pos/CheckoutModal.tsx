@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import type { PaymentMethod } from "@/types";
+import type { PaymentMethod, CashSale } from "@/types";
 import { paymentMethods } from "@/types";
 import LoadingSpinner from "../shared/LoadingSpinner";
-import { DollarSign } from "lucide-react";
+import { DollarSign, Printer, CheckCircle } from "lucide-react";
 
 export interface CheckoutDetails {
   paymentMethod: PaymentMethod;
@@ -23,6 +23,9 @@ interface CheckoutModalProps {
   totalAmount: number;
   onConfirmSale: (details: CheckoutDetails) => void;
   isSaving: boolean;
+  lastSale: CashSale | null;
+  onPrintReceipt: () => void;
+  onNewSale: () => void;
 }
 
 export default function CheckoutModal({
@@ -31,26 +34,32 @@ export default function CheckoutModal({
   totalAmount,
   onConfirmSale,
   isSaving,
+  lastSale,
+  onPrintReceipt,
+  onNewSale,
 }: CheckoutModalProps) {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [amountTendered, setAmountTendered] = useState<string>("");
   const [paymentReference, setPaymentReference] = useState<string>("");
 
   useEffect(() => {
-    // Reset state when modal opens
-    if (isOpen) {
-      setSelectedPaymentMethod(null);
+    // Reset state only when opening for a new sale, not when it becomes a success screen
+    if (isOpen && !lastSale) {
+      setSelectedPaymentMethod('Cash'); // Default to cash for speed
       setAmountTendered("");
       setPaymentReference("");
     }
-  }, [isOpen]);
+  }, [isOpen, lastSale]);
 
   const changeDue = useMemo(() => {
     if (selectedPaymentMethod !== "Cash" || !amountTendered) {
       return 0;
     }
     const tendered = parseFloat(amountTendered);
-    return isNaN(tendered) ? 0 : tendered - totalAmount;
+    if (isNaN(tendered) || tendered < totalAmount) {
+      return 0;
+    }
+    return tendered - totalAmount;
   }, [selectedPaymentMethod, amountTendered, totalAmount]);
 
   const handleConfirm = () => {
@@ -64,6 +73,48 @@ export default function CheckoutModal({
 
   const isCash = selectedPaymentMethod === "Cash";
   const canConfirm = selectedPaymentMethod && (!isCash || (isCash && parseFloat(amountTendered) >= totalAmount));
+
+  if (lastSale) {
+    const saleChangeDue = useMemo(() => {
+        if (lastSale.paymentMethod === 'Cash' && lastSale.totalAmount > 0) {
+            // We don't have amount tendered on the lastSale object, so we recalculate
+            // This assumes the amount tendered was correctly entered before saving.
+            // For simplicity, we re-use the `changeDue` state from the previous screen.
+            return changeDue;
+        }
+        return 0;
+    }, [lastSale, changeDue]);
+
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onNewSale()}>
+        <DialogContent>
+          <DialogHeader className="text-center">
+            <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-2" />
+            <DialogTitle className="font-headline text-2xl">Sale Completed!</DialogTitle>
+            <DialogDescription>
+              Sale #{lastSale.saleNumber} recorded successfully.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 text-center">
+            {lastSale.paymentMethod === 'Cash' && saleChangeDue > 0 && (
+              <div className="space-y-1">
+                <Label>Change Due</Label>
+                <p className="text-3xl font-bold text-primary">GHS {saleChangeDue.toFixed(2)}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="sm:justify-center gap-2">
+            <Button onClick={onNewSale} variant="outline" className="w-full sm:w-auto">
+              Start New Sale
+            </Button>
+            <Button onClick={onPrintReceipt} className="w-full sm:w-auto">
+              <Printer className="mr-2 h-4 w-4" /> Print Receipt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -116,7 +167,7 @@ export default function CheckoutModal({
               <div>
                 <Label>Change Due</Label>
                 <div className="text-2xl font-bold text-green-600">
-                  GHS {changeDue >= 0 ? changeDue.toFixed(2) : "0.00"}
+                  GHS {changeDue.toFixed(2)}
                 </div>
               </div>
             </div>
