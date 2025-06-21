@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/items", label: "Items", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/sales", label: "Direct Sales", icon: ShoppingCart },
+  { href: "/sales", label: "Cash Sales", icon: ShoppingCart },
   { href: "/revenue", label: "Revenue", icon: Landmark },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },

@@ -175,8 +175,8 @@ export interface RevenueRecord {
   createdAt: Date;
 }
 
-// Types for Direct Sales Module
-export interface DirectSaleItem {
+// Types for Cash Sales Module
+export interface CashSaleItem {
   id: string; // Unique ID for this line item within the sale
   itemId?: string; // Optional: ID of the product/service from the 'items' collection
   description: string; // Name/description of the item/service sold
@@ -185,13 +185,13 @@ export interface DirectSaleItem {
   total: number; // quantity * unitPrice
 }
 
-export interface DirectSale {
+export interface CashSale {
   id: string; // Firestore document ID
-  saleNumber: string; // User-friendly sale identifier (e.g., SALE-2024-001)
+  saleNumber: string; // User-friendly sale identifier (e.g., CSALE-2024-001)
   businessId: string;
   customerId?: string; // Optional: Link to a customer
   customerName?: string; // Optional: Manually entered customer name if not linked
-  items: DirectSaleItem[];
+  items: CashSaleItem[];
   subtotal: number;
   taxDetails: { // Consistent with Invoice tax details for now
     vatRate: number;
@@ -203,7 +203,7 @@ export interface DirectSale {
     totalTax: number;
   };
   totalAmount: number;
-  paymentMethod: PaymentMethod; // Payment is immediate for direct sales
+  paymentMethod: PaymentMethod; // Payment is immediate for cash sales
   paymentReference?: string; // Optional: Transaction ID, etc.
   date: Date; // Date of the sale
   notes?: string;

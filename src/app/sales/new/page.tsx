@@ -5,8 +5,8 @@ import { useState, useEffect } from "react";
 import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
-import DirectSaleForm, { type DirectSaleFormInputs } from "@/components/sales/DirectSaleForm";
-import type { Customer, TaxSettings, DirectSale, Item as ProductItem, DirectSaleItem } from "@/types";
+import CashSaleForm, { type CashSaleFormInputs } from "@/components/sales/DirectSaleForm";
+import type { Customer, TaxSettings, CashSale, Item as ProductItem, CashSaleItem } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -40,7 +40,7 @@ const defaultTaxSettings: TaxSettings = {
 const generateSaleNumber = async () => {
   // This is a simplified version. In a real app, you might query Firestore 
   // for the last sale number or use a more robust counter.
-  const prefix = "SALE";
+  const prefix = "CSALE";
   const date = new Date();
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -49,7 +49,7 @@ const generateSaleNumber = async () => {
 };
 
 
-export default function NewDirectSalePage() {
+export default function NewCashSalePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [availableItems, setAvailableItems] = useState<ProductItem[]>([]);
@@ -85,7 +85,7 @@ export default function NewDirectSalePage() {
         setAvailableItems(itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date() } as ProductItem)));
 
       } catch (error) {
-        console.error("Error fetching initial data for new direct sale: ", error);
+        console.error("Error fetching initial data for new cash sale: ", error);
         toast({ title: "Error Loading Data", description: "Could not load required data.", variant: "destructive" });
         if (!taxSettings) setTaxSettings(defaultTaxSettings); // Fallback
       } finally {
@@ -95,7 +95,7 @@ export default function NewDirectSalePage() {
     fetchData();
   }, [toast, currentUser]);
 
-  const handleSaveSale = async (salePayload: Omit<DirectSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber">, _formData: DirectSaleFormInputs) => {
+  const handleSaveSale = async (salePayload: Omit<CashSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber">, _formData: CashSaleFormInputs) => {
     if (!currentUser?.businessId || !currentUser.id) {
       toast({ title: "Error", description: "User or business context is missing.", variant: "destructive" });
       return;
@@ -110,7 +110,7 @@ export default function NewDirectSalePage() {
       await runTransaction(db, async (transaction) => {
         // Phase 1: All READS
         const itemUpdates: Array<{ ref: DocumentReference; newQuantity: number; name: string }> = [];
-        const itemDocsToRead: Array<{ id: string; ref: DocumentReference; saleItem: DirectSaleItem; productItem?: ProductItem }> = [];
+        const itemDocsToRead: Array<{ id: string; ref: DocumentReference; saleItem: CashSaleItem; productItem?: ProductItem }> = [];
 
         for (const saleItem of salePayload.items) {
           if (saleItem.itemId) {
@@ -147,17 +147,17 @@ export default function NewDirectSalePage() {
         }
 
         // Phase 2: All WRITES
-        // 2a. Create the DirectSale document
-        const directSaleDocRef = doc(collection(db, "directSales")); // Generate new ID for the sale
-        const newSaleData: DirectSale = {
+        // 2a. Create the CashSale document
+        const cashSaleDocRef = doc(collection(db, "cashSales")); // Generate new ID for the sale
+        const newSaleData: CashSale = {
           ...salePayload,
-          id: directSaleDocRef.id, // Use the generated ID
+          id: cashSaleDocRef.id, // Use the generated ID
           saleNumber: generatedSaleNumber,
           businessId: currentUser.businessId!,
           recordedBy: currentUser.id!,
           createdAt: new Date(), // Placeholder, will be serverTimestamp in the transaction
         };
-        transaction.set(directSaleDocRef, { ...newSaleData, createdAt: serverTimestamp() });
+        transaction.set(cashSaleDocRef, { ...newSaleData, createdAt: serverTimestamp() });
 
         // 2b. Update inventory for each item sold
         for (const update of itemUpdates) {
@@ -165,15 +165,13 @@ export default function NewDirectSalePage() {
         }
       }); // End of transaction
 
-      toast({ title: "Direct Sale Recorded", description: `Sale ${generatedSaleNumber} has been saved successfully.` });
-      // Check for negative inventory warnings after successful transaction (conceptual for now)
-      // For example, if the transaction returned a list of warnings, you could toast them here.
-
+      toast({ title: "Cash Sale Recorded", description: `Sale ${generatedSaleNumber} has been saved successfully.` });
+      
       router.push("/sales");
 
     } catch (error) {
-      console.error("Error saving direct sale: ", error);
-      toast({ title: "Save Failed", description: "Could not save the direct sale. " + (error instanceof Error ? error.message : ""), variant: "destructive" });
+      console.error("Error saving cash sale: ", error);
+      toast({ title: "Save Failed", description: "Could not save the cash sale. " + (error instanceof Error ? error.message : ""), variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -194,7 +192,7 @@ export default function NewDirectSalePage() {
      return (
       <AuthGuard>
         <AuthenticatedLayout>
-           <PageHeader title="Record New Direct Sale" />
+           <PageHeader title="Record New Cash Sale" />
            <div className="text-center py-10 text-muted-foreground">
              <p>Business information is not loaded. Please ensure your business profile is set up.</p>
              <Button variant="outline" onClick={() => router.push("/dashboard")} className="mt-4">
@@ -210,10 +208,10 @@ export default function NewDirectSalePage() {
     <AuthGuard>
       <AuthenticatedLayout>
         <PageHeader
-          title="Record New Direct Sale"
-          description="Enter details for a direct sale transaction."
+          title="Record New Cash Sale"
+          description="Enter details for a cash sale transaction."
         />
-        <DirectSaleForm
+        <CashSaleForm
           customers={customers}
           taxSettings={taxSettings}
           availableItems={availableItems}
@@ -226,4 +224,3 @@ export default function NewDirectSalePage() {
     </AuthGuard>
   );
 }
-

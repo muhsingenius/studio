@@ -8,7 +8,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Edit, Trash2, Search, Eye as ViewIcon } from "lucide-react";
 import Link from "next/link";
-import type { DirectSale } from "@/types";
+import type { CashSale } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -24,7 +24,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger, // Added AlertDialogTrigger here
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { cn } from "@/lib/utils";
@@ -44,12 +44,12 @@ import {
 import { useRouter } from "next/navigation"; 
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function DirectSalesPage() {
-  const [sales, setSales] = useState<DirectSale[]>([]);
+export default function CashSalesPage() {
+  const [sales, setSales] = useState<CashSale[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [saleToDelete, setSaleToDelete] = useState<DirectSale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<CashSale | null>(null);
   const { toast } = useToast();
   const router = useRouter(); 
   const { currentUser } = useAuth();
@@ -62,7 +62,7 @@ export default function DirectSalesPage() {
     }
 
     setIsLoading(true);
-    const salesCollectionRef = collection(db, "directSales");
+    const salesCollectionRef = collection(db, "cashSales");
     const q = query(
       salesCollectionRef, 
       where("businessId", "==", currentUser.businessId),
@@ -77,13 +77,13 @@ export default function DirectSalesPage() {
           ...data,
           date: (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date(data.date),
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
-        } as DirectSale;
+        } as CashSale;
       });
       setSales(salesData);
       setIsLoading(false);
     }, (error) => {
-      console.error("Error fetching direct sales: ", error);
-      toast({ title: "Error", description: "Could not fetch direct sales.", variant: "destructive" });
+      console.error("Error fetching cash sales: ", error);
+      toast({ title: "Error", description: "Could not fetch cash sales.", variant: "destructive" });
       setSales([]); 
       setIsLoading(false);
     });
@@ -91,7 +91,7 @@ export default function DirectSalesPage() {
     return () => unsubscribe();
   }, [currentUser, toast]);
 
-  const confirmDeleteSale = (sale: DirectSale) => {
+  const confirmDeleteSale = (sale: CashSale) => {
     setSaleToDelete(sale);
   };
 
@@ -103,26 +103,17 @@ export default function DirectSalesPage() {
     }
     setIsDeleting(true);
     try {
-      // IMPORTANT: Deleting a sale should ideally reverse inventory changes.
-      // This is complex and requires knowing the original item quantities.
-      // For this iteration, we will just delete the sale record.
-      // A more robust solution would involve a transaction to:
-      // 1. Read the sale items.
-      // 2. For each item, increment inventory.
-      // 3. Delete the sale document.
-
       await runTransaction(db, async (transaction) => {
-        const saleDocRef = doc(db, "directSales", saleToDelete.id);
+        const saleDocRef = doc(db, "cashSales", saleToDelete.id);
         const saleSnapshot = await transaction.get(saleDocRef);
         if (!saleSnapshot.exists()) {
-            throw new Error("Sale document not found.");
+            throw new Error("Cash sale document not found.");
         }
-        const saleData = saleSnapshot.data() as DirectSale;
+        const saleData = saleSnapshot.data() as CashSale;
 
         // Reverse inventory changes
         for (const saleItem of saleData.items) {
             if (saleItem.itemId) {
-                // Assuming items collection exists and items have 'trackInventory' and 'quantityOnHand'
                 const itemRef = doc(db, "items", saleItem.itemId);
                 const itemSnap = await transaction.get(itemRef);
                 if (itemSnap.exists()) {
@@ -139,12 +130,11 @@ export default function DirectSalesPage() {
         transaction.delete(saleDocRef);
       });
 
-
-      toast({ title: "Sale Deleted", description: `Sale ${saleToDelete.saleNumber} has been deleted and inventory adjusted.` });
+      toast({ title: "Cash Sale Deleted", description: `Sale ${saleToDelete.saleNumber} has been deleted and inventory adjusted.` });
       setSaleToDelete(null);
     } catch (error) {
-      console.error("Error deleting sale: ", error);
-      toast({ title: "Error", description: "Could not delete sale. " + (error instanceof Error ? error.message : ""), variant: "destructive" });
+      console.error("Error deleting cash sale: ", error);
+      toast({ title: "Error", description: "Could not delete cash sale. " + (error instanceof Error ? error.message : ""), variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -155,8 +145,6 @@ export default function DirectSalesPage() {
   };
   
   const handleEditSale = (saleId: string) => {
-    // Editing sales might be restricted, especially if they impact inventory.
-    // For now, direct to an edit page which might have limited functionality.
     router.push(`/sales/${saleId}/edit`);
   };
 
@@ -170,12 +158,12 @@ export default function DirectSalesPage() {
     <AuthGuard>
       <AuthenticatedLayout>
         <PageHeader
-          title="Direct Sales"
-          description="Manage all your direct sale transactions."
+          title="Cash Sales"
+          description="Manage all your immediate cash sale transactions."
           actions={
             <Link href="/sales/new" passHref>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!currentUser?.businessId || isLoading}>
-                <PlusCircle className="mr-2 h-5 w-5" /> Record New Sale
+                <PlusCircle className="mr-2 h-5 w-5" /> Record New Cash Sale
               </Button>
             </Link>
           }
@@ -258,7 +246,7 @@ export default function DirectSalesPage() {
                                 <AlertDialogHeader>
                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete sale {sale.saleNumber} and attempt to adjust inventory.
+                                    This action cannot be undone. This will permanently delete cash sale {sale.saleNumber} and attempt to adjust inventory.
                                 </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -281,7 +269,7 @@ export default function DirectSalesPage() {
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                        {!currentUser?.businessId ? "Business context not loaded." :
-                       sales.length === 0 ? "No direct sales recorded yet." : "No sales match your search."}
+                       sales.length === 0 ? "No cash sales recorded yet." : "No sales match your search."}
                       </TableCell>
                     </TableRow>
                    )
@@ -295,4 +283,3 @@ export default function DirectSalesPage() {
     </AuthGuard>
   );
 }
-

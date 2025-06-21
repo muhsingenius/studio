@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { DirectSale } from "@/types";
+import type { CashSale } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +9,11 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-interface DirectSaleDetailsDisplayProps {
-  sale: DirectSale;
+interface CashSaleDetailsDisplayProps {
+  sale: CashSale;
 }
 
-export default function DirectSaleDetailsDisplay({ sale }: DirectSaleDetailsDisplayProps) {
+export default function CashSaleDetailsDisplay({ sale }: CashSaleDetailsDisplayProps) {
   const {
     saleNumber,
     customerName,
@@ -32,7 +32,7 @@ export default function DirectSaleDetailsDisplay({ sale }: DirectSaleDetailsDisp
       <CardHeader className="bg-muted/30 p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <CardTitle className="font-headline text-3xl md:text-4xl text-primary">Sale {saleNumber}</CardTitle>
+            <CardTitle className="font-headline text-3xl md:text-4xl text-primary">Cash Sale {saleNumber}</CardTitle>
             <CardDescription className="text-md">
               Customer: <span className="font-semibold">{customerName || "Walk-in Customer"}</span>
             </CardDescription>
@@ -97,7 +97,7 @@ export default function DirectSaleDetailsDisplay({ sale }: DirectSaleDetailsDisp
           </div>
           
           <div className="space-y-2 text-sm md:text-base">
-            <h3 className="text-lg font-semibold mb-3 font-headline text-right">Sale Summary</h3>
+            <h3 className="text-lg font-semibold mb-3 font-headline text-right">Cash Sale Summary</h3>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal:</span>
               <span className="font-medium">GHS {subtotal.toFixed(2)}</span>

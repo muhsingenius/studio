@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PlusCircle, CalendarIcon, Save, DollarSign } from "lucide-react";
 import LineItemInput from "@/components/invoices/LineItemInput"; // Reusing for consistency
-import type { DirectSale, DirectSaleItem, Customer, TaxSettings, Item as ProductItem, PaymentMethod } from "@/types";
+import type { CashSale, CashSaleItem, Customer, TaxSettings, Item as ProductItem, PaymentMethod } from "@/types";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +24,7 @@ import { paymentMethods } from "@/types";
 
 const NO_CUSTOMER_SELECTED_VALUE = "__NO_CUSTOMER_SELECTED__";
 
-const directSaleItemSchema = z.object({
+const cashSaleItemSchema = z.object({
   id: z.string().default(() => Date.now().toString() + Math.random().toString(36).substring(2, 7)),
   itemId: z.string().optional(),
   description: z.string().min(1, "Description is required"),
@@ -33,30 +33,30 @@ const directSaleItemSchema = z.object({
   total: z.number(),
 });
 
-const directSaleSchema = z.object({
+const cashSaleSchema = z.object({
   customerId: z.string().optional(),
   customerName: z.string().optional(), // For manually entered names if no customer selected
   date: z.date({ required_error: "Sale date is required." }),
-  items: z.array(directSaleItemSchema).min(1, "At least one item is required"),
+  items: z.array(cashSaleItemSchema).min(1, "At least one item is required"),
   paymentMethod: z.enum(paymentMethods, { required_error: "Payment method is required" }),
   paymentReference: z.string().optional(),
   notes: z.string().optional(),
 });
 
-export type DirectSaleFormInputs = z.infer<typeof directSaleSchema>;
+export type CashSaleFormInputs = z.infer<typeof cashSaleSchema>;
 
-interface DirectSaleFormProps {
-  sale?: DirectSale;
+interface CashSaleFormProps {
+  sale?: CashSale;
   customers: Customer[];
   taxSettings: TaxSettings;
   availableItems: ProductItem[];
-  onSave: (data: Omit<DirectSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber">, formData: DirectSaleFormInputs) => Promise<void>;
+  onSave: (data: Omit<CashSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber">, formData: CashSaleFormInputs) => Promise<void>;
   isSaving?: boolean;
   formMode?: "create" | "edit";
   initialSaleNumber?: string;
 }
 
-export default function DirectSaleForm({
+export default function CashSaleForm({
   sale,
   customers,
   taxSettings,
@@ -65,7 +65,7 @@ export default function DirectSaleForm({
   isSaving,
   formMode = "create",
   initialSaleNumber,
-}: DirectSaleFormProps) {
+}: CashSaleFormProps) {
   const [saleNumber, setSaleNumber] = useState(initialSaleNumber || "");
   const { toast } = useToast();
 
@@ -81,8 +81,8 @@ export default function DirectSaleForm({
     };
   }, [sale]);
 
-  const { control, register, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<DirectSaleFormInputs>({
-    resolver: zodResolver(directSaleSchema),
+  const { control, register, handleSubmit, watch, setValue, getValues, formState: { errors } } = useForm<CashSaleFormInputs>({
+    resolver: zodResolver(cashSaleSchema),
     defaultValues,
   });
 
@@ -137,7 +137,7 @@ export default function DirectSaleForm({
     append({ description: "", quantity: 1, unitPrice: 0, total: 0, id: Date.now().toString() + Math.random().toString(36).substring(2,7), itemId: undefined });
   };
 
-  const handleItemChange = (index: number, field: keyof DirectSaleItem, value: string | number) => {
+  const handleItemChange = (index: number, field: keyof CashSaleItem, value: string | number) => {
     const currentItem = getValues(`items.${index}`);
     const newItemData = { ...currentItem, [field]: value };
     if (field === 'quantity' || field === 'unitPrice') {
@@ -166,7 +166,7 @@ export default function DirectSaleForm({
     }
   };
 
-  const processSubmit: SubmitHandler<DirectSaleFormInputs> = (data) => {
+  const processSubmit: SubmitHandler<CashSaleFormInputs> = (data) => {
     let finalCustomerName = data.customerName;
     if (data.customerId && data.customerId !== NO_CUSTOMER_SELECTED_VALUE) { // Check against special value
         const selectedCustomer = customers.find(c => c.id === data.customerId);
@@ -176,7 +176,7 @@ export default function DirectSaleForm({
     }
 
 
-    const finalSaleData: Omit<DirectSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber"> = {
+    const finalSaleData: Omit<CashSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber"> = {
       customerId: data.customerId === NO_CUSTOMER_SELECTED_VALUE ? undefined : data.customerId, // Set to undefined if "no customer"
       customerName: finalCustomerName,
       items: data.items.map(item => ({
@@ -211,7 +211,7 @@ export default function DirectSaleForm({
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
             <div>
-              <CardTitle className="font-headline text-2xl md:text-3xl">{formMode === "edit" ? "Edit Direct Sale" : "Record New Direct Sale"}</CardTitle>
+              <CardTitle className="font-headline text-2xl md:text-3xl">{formMode === "edit" ? "Edit Cash Sale" : "Record New Cash Sale"}</CardTitle>
               {saleNumber && <p className="text-muted-foreground">Sale #: {saleNumber}</p>}
             </div>
           </div>
@@ -390,12 +390,10 @@ export default function DirectSaleForm({
         <CardFooter className="flex flex-col md:flex-row justify-end gap-3 border-t pt-6">
           <Button type="submit" disabled={isSaving || (formMode === 'edit' && isReadOnly && !getValues("notes") && !getValues("paymentReference"))} className="w-full md:w-auto">
             {isSaving ? <LoadingSpinner size={16} className="mr-2"/> : <Save className="mr-2 h-4 w-4" />}
-            {isSaving ? (formMode === "edit" ? "Updating..." : "Saving...") : (formMode === "edit" ? "Update Sale" : "Record Sale & Payment")}
+            {isSaving ? (formMode === "edit" ? "Updating..." : "Saving...") : (formMode === "edit" ? "Update Cash Sale" : "Record Cash Sale & Payment")}
           </Button>
         </CardFooter>
       </Card>
     </form>
   );
 }
-
-    

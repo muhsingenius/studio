@@ -6,23 +6,23 @@ import { useParams, useRouter } from "next/navigation";
 import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
-import DirectSaleDetailsDisplay from "@/components/sales/DirectSaleDetailsDisplay";
+import CashSaleDetailsDisplay from "@/components/sales/DirectSaleDetailsDisplay";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit, Printer } from "lucide-react";
-import type { DirectSale } from "@/types";
+import type { CashSale } from "@/types";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function ViewDirectSalePage() {
+export default function ViewCashSalePage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
-  const [sale, setSale] = useState<DirectSale | null>(null);
+  const [sale, setSale] = useState<CashSale | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +39,7 @@ export default function ViewDirectSalePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const saleDocRef = doc(db, "directSales", saleId);
+      const saleDocRef = doc(db, "cashSales", saleId);
       const saleSnap = await getDoc(saleDocRef);
 
       if (saleSnap.exists() && saleSnap.data().businessId === currentUser.businessId) {
@@ -49,7 +49,7 @@ export default function ViewDirectSalePage() {
           ...data,
           date: (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date(data.date),
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
-        } as DirectSale);
+        } as CashSale);
       } else {
         setError(saleSnap.exists() ? "Access Denied." : "Sale not found.");
         toast({ title: saleSnap.exists() ? "Access Denied" : "Not Found", description: saleSnap.exists() ? "This sale does not belong to your business." :`Sale with ID ${saleId} does not exist.`, variant: "destructive" });
@@ -82,8 +82,8 @@ export default function ViewDirectSalePage() {
     <AuthGuard>
       <AuthenticatedLayout>
         <PageHeader
-          title={sale ? `Sale ${sale.saleNumber}` : "View Sale"}
-          description={sale ? `Details for sale to ${sale.customerName || 'Walk-in Customer'}` : "Loading sale details..."}
+          title={sale ? `Cash Sale ${sale.saleNumber}` : "View Cash Sale"}
+          description={sale ? `Details for cash sale to ${sale.customerName || 'Walk-in Customer'}` : "Loading sale details..."}
           actions={
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               <Button variant="outline" onClick={() => router.push("/sales")}>
@@ -97,7 +97,7 @@ export default function ViewDirectSalePage() {
               {sale && ( // Edit might be restricted in the form itself
                 <Button onClick={() => router.push(`/sales/${sale.id}/edit`)}>
                   <Edit className="mr-2 h-4 w-4" />
-                  Edit Sale
+                  Edit Cash Sale
                 </Button>
               )}
             </div>
@@ -110,7 +110,7 @@ export default function ViewDirectSalePage() {
           </div>
         )}
         {sale && !error && (
-          <DirectSaleDetailsDisplay sale={sale} />
+          <CashSaleDetailsDisplay sale={sale} />
         )}
         {!sale && !isLoading && !error && (
              <div className="text-center py-10 text-muted-foreground">

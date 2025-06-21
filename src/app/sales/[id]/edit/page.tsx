@@ -6,8 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
-import DirectSaleForm, { type DirectSaleFormInputs } from "@/components/sales/DirectSaleForm";
-import type { Customer, TaxSettings, DirectSale, Item as ProductItem } from "@/types";
+import CashSaleForm, { type CashSaleFormInputs } from "@/components/sales/DirectSaleForm";
+import type { Customer, TaxSettings, CashSale, Item as ProductItem } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { db } from "@/lib/firebase";
@@ -33,13 +33,13 @@ const defaultTaxSettings: TaxSettings = {
   customTaxes: [],
 };
 
-export default function EditDirectSalePage() {
+export default function EditCashSalePage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
   const { currentUser } = useAuth();
 
-  const [sale, setSale] = useState<DirectSale | null>(null);
+  const [sale, setSale] = useState<CashSale | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
   const [availableItems, setAvailableItems] = useState<ProductItem[]>([]);
@@ -65,7 +65,7 @@ export default function EditDirectSalePage() {
     setIsLoadingData(true);
     setError(null);
     try {
-      const saleDocRef = doc(db, "directSales", saleId);
+      const saleDocRef = doc(db, "cashSales", saleId);
       const saleSnap = await getDoc(saleDocRef);
 
       if (saleSnap.exists()) {
@@ -80,7 +80,7 @@ export default function EditDirectSalePage() {
             ...data,
             date: (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date(data.date),
             createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
-          } as DirectSale);
+          } as CashSale);
         }
       } else {
         setError("Sale not found.");
@@ -112,7 +112,7 @@ export default function EditDirectSalePage() {
     fetchData();
   }, [fetchData]);
 
-  const handleSaveSale = async (salePayload: Omit<DirectSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber">, _formData: DirectSaleFormInputs) => {
+  const handleSaveSale = async (salePayload: Omit<CashSale, "id" | "createdAt" | "businessId" | "recordedBy" | "saleNumber">, _formData: CashSaleFormInputs) => {
     if (!sale || !currentUser || !currentUser.businessId) {
       toast({ title: "Error", description: "Required data missing for update.", variant: "destructive" });
       return;
@@ -124,21 +124,17 @@ export default function EditDirectSalePage() {
 
     setIsSaving(true);
     try {
-      const saleDocRef = doc(db, "directSales", sale.id);
+      const saleDocRef = doc(db, "cashSales", sale.id);
       // For now, only allow updating notes and paymentReference.
       // Item and amount changes are complex due to inventory.
-      const updateData: Partial<DirectSale> = {
+      const updateData: Partial<CashSale> = {
         notes: salePayload.notes,
         paymentReference: salePayload.paymentReference,
-        // customerId: salePayload.customerId, // Potentially editable if it doesn't affect core financials/inventory
-        // customerName: salePayload.customerName,
-        // date: salePayload.date,
-        // paymentMethod: salePayload.paymentMethod,
-        updatedAt: serverTimestamp(), // Add an updatedAt field to DirectSale type if needed
+        updatedAt: serverTimestamp(), // Add an updatedAt field to CashSale type if needed
       };
       
       await updateDoc(saleDocRef, updateData);
-      toast({ title: "Sale Updated", description: `Sale ${sale.saleNumber} has been updated.` });
+      toast({ title: "Cash Sale Updated", description: `Sale ${sale.saleNumber} has been updated.` });
       router.push(`/sales/${sale.id}`);
     } catch (error) {
       console.error("Error updating sale: ", error);
@@ -162,7 +158,7 @@ export default function EditDirectSalePage() {
     return (
       <AuthGuard>
         <AuthenticatedLayout>
-          <PageHeader title="Edit Direct Sale" />
+          <PageHeader title="Edit Cash Sale" />
           <div className="text-center py-10 text-destructive bg-destructive/10 p-4 rounded-md">
             <p className="text-lg font-semibold">Error</p>
             <p>{error}</p>
@@ -179,7 +175,7 @@ export default function EditDirectSalePage() {
      return (
       <AuthGuard>
         <AuthenticatedLayout>
-          <PageHeader title="Edit Direct Sale" />
+          <PageHeader title="Edit Cash Sale" />
            <div className="text-center py-10 text-muted-foreground">
              <p>Sale data could not be loaded.</p>
               <Button variant="outline" onClick={() => router.push("/sales")} className="mt-4">
@@ -195,10 +191,10 @@ export default function EditDirectSalePage() {
     <AuthGuard>
       <AuthenticatedLayout>
         <PageHeader
-          title={`Edit Sale ${sale.saleNumber}`}
+          title={`Edit Cash Sale ${sale.saleNumber}`}
           description="Update sale details below. Note: Item and amount modifications are restricted for completed sales."
         />
-        <DirectSaleForm
+        <CashSaleForm
           sale={sale}
           customers={customers}
           taxSettings={taxSettings}
