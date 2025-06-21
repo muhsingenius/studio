@@ -6,18 +6,19 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, FileText, Users, Receipt, Coins } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, FileText, Users, Receipt, Coins, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, Timestamp, orderBy, limit, doc, getDoc } from "firebase/firestore";
-import type { Payment, RevenueRecord, Invoice } from "@/types";
+import type { Payment, RevenueRecord, Invoice, CashSale } from "@/types";
 import { format } from "date-fns";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
 interface DashboardSummary {
   totalRevenue: number;
   totalInvoiceRevenue: number;
+  totalCashSaleRevenue: number;
   totalOtherRevenue: number;
   totalExpenses: number; // Placeholder for now
   netProfit: number; // Placeholder for now
@@ -28,7 +29,7 @@ interface DashboardSummary {
 
 interface TransactionItem {
   id: string;
-  type: "Invoice Payment" | "Other Revenue" | "Expense"; // Added Expense for future
+  type: "Invoice Payment" | "Cash Sale" | "Other Revenue" | "Expense"; // Added Expense for future
   description: string;
   amount: number;
   date: Date;
@@ -50,6 +51,7 @@ export default function DashboardPage() {
 
     try {
       let totalInvoiceRevenue = 0;
+      let totalCashSaleRevenue = 0;
       let totalOtherRevenue = 0;
       let overdueInvoicesCount = 0;
       const fetchedTransactions: TransactionItem[] = [];
@@ -65,7 +67,6 @@ export default function DashboardPage() {
         const payment = { id: paymentDoc.id, ...paymentDoc.data() } as Payment;
         totalInvoiceRevenue += payment.amountPaid;
         
-        // Fetch corresponding invoice to get invoice number for description
         let invoiceNumber = "N/A";
         if (payment.invoiceId) {
             const invoiceDocRef = doc(db, "invoices", payment.invoiceId);
@@ -85,6 +86,25 @@ export default function DashboardPage() {
         });
       });
       await Promise.all(invoicePromises);
+      
+      // Fetch Cash Sales
+      const cashSalesQuery = query(
+        collection(db, "cashSales"),
+        where("businessId", "==", currentUser.businessId)
+      );
+      const cashSalesSnapshot = await getDocs(cashSalesQuery);
+      cashSalesSnapshot.forEach((docSnap) => {
+        const sale = { id: docSnap.id, ...docSnap.data() } as CashSale;
+        totalCashSaleRevenue += sale.totalAmount;
+        fetchedTransactions.push({
+            id: sale.id,
+            type: "Cash Sale",
+            description: `Sale #${sale.saleNumber}`,
+            amount: sale.totalAmount,
+            date: (sale.date as Timestamp)?.toDate ? (sale.date as Timestamp).toDate() : new Date(sale.date as any),
+            rawDate: (sale.date as Timestamp)?.toDate ? (sale.date as Timestamp).toDate() : new Date(sale.date as any),
+        });
+      });
 
 
       // Fetch Other Revenue Records
@@ -93,7 +113,7 @@ export default function DashboardPage() {
         where("businessId", "==", currentUser.businessId)
       );
       const revenueRecordsSnapshot = await getDocs(revenueRecordsQuery);
-      revenueRecordsSnapshot.forEach((docSnap) => { // Renamed doc to docSnap to avoid conflict with firestore's doc
+      revenueRecordsSnapshot.forEach((docSnap) => {
         const record = { id: docSnap.id, ...docSnap.data() } as RevenueRecord;
         totalOtherRevenue += record.amount;
         fetchedTransactions.push({
@@ -118,14 +138,16 @@ export default function DashboardPage() {
       // Placeholder for Expenses, Profit, Tax, Customers - these need their own data sources
       const totalExpenses = 0; // Replace with actual expense fetching
       const activeCustomersCount = 0; // Replace with actual customer count
+      const totalRevenue = totalInvoiceRevenue + totalCashSaleRevenue + totalOtherRevenue;
 
       setSummaryData({
-        totalRevenue: totalInvoiceRevenue + totalOtherRevenue,
+        totalRevenue,
         totalInvoiceRevenue,
+        totalCashSaleRevenue,
         totalOtherRevenue,
         totalExpenses, // Placeholder
-        netProfit: totalInvoiceRevenue + totalOtherRevenue - totalExpenses, // Simplified profit
-        taxObligation: (totalInvoiceRevenue + totalOtherRevenue) * 0.15, // Very rough VAT estimate
+        netProfit: totalRevenue - totalExpenses, // Simplified profit
+        taxObligation: totalRevenue * 0.15, // Very rough VAT estimate
         overdueInvoicesCount,
         activeCustomersCount, // Placeholder
       });
@@ -136,7 +158,6 @@ export default function DashboardPage() {
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-      // Handle error (e.g., show a toast)
     } finally {
       setIsLoading(false);
     }
@@ -175,7 +196,7 @@ export default function DashboardPage() {
       <AuthenticatedLayout>
         <PageHeader title="Dashboard" description="Welcome to your financial overview." />
         
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -186,8 +207,8 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground">All income sources combined</p>
             </CardContent>
           </Card>
-
-           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+          
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Revenue from Invoices</CardTitle>
               <Receipt className="h-5 w-5 text-primary" />
@@ -195,6 +216,17 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">GHS {summaryData.totalInvoiceRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <p className="text-xs text-muted-foreground">Payments received for invoices</p>
+            </CardContent>
+          </Card>
+          
+           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Revenue from Sales</CardTitle>
+              <ShoppingCart className="h-5 w-5 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">GHS {summaryData.totalCashSaleRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <p className="text-xs text-muted-foreground">POS and direct cash sales</p>
             </CardContent>
           </Card>
 
@@ -210,7 +242,7 @@ export default function DashboardPage() {
           </Card>
 
 
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 col-span-1 md:col-span-2 lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
               <TrendingDown className="h-5 w-5 text-red-500" />
@@ -228,7 +260,6 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{summaryData.overdueInvoicesCount}</div>
-              {/* <p className="text-xs text-muted-foreground">{summaryData.pendingInvoices} pending</p> */}
             </CardContent>
           </Card>
 
@@ -260,8 +291,9 @@ export default function DashboardPage() {
                         <p className="text-sm text-muted-foreground">
                           {format(tx.date, "dd MMM, yyyy")} - <span className={cn("font-semibold text-xs capitalize", 
                             tx.type === "Invoice Payment" ? "text-primary" :
+                            tx.type === "Cash Sale" ? "text-blue-600" :
                             tx.type === "Other Revenue" ? "text-accent" :
-                            "text-destructive" // For future expenses
+                            "text-destructive"
                             )}>{tx.type}</span>
                         </p>
                       </div>

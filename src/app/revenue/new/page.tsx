@@ -45,8 +45,8 @@ export default function NewRevenuePage() {
     <AuthGuard>
       <AuthenticatedLayout>
         <PageHeader
-          title="Record New Revenue"
-          description="Enter the details of revenue received outside of standard invoicing."
+          title="Record Other Revenue"
+          description="Record miscellaneous income not from an invoice or POS sale (e.g., grants, interest)."
         />
         <RevenueForm 
           onSave={handleCreateRevenue} 
@@ -57,4 +57,3 @@ export default function NewRevenuePage() {
     </AuthGuard>
   );
 }
-

@@ -119,12 +119,12 @@ export default function EditRevenuePage() {
     return (
       <AuthGuard>
         <AuthenticatedLayout>
-          <PageHeader title="Edit Revenue Record" />
+          <PageHeader title="Edit Other Revenue" />
           <div className="text-center py-10 text-destructive bg-destructive/10 p-4 rounded-md">
             <p className="text-lg font-semibold">Error</p>
             <p>{error}</p>
             <Button variant="outline" onClick={() => router.push("/revenue")} className="mt-4">
-              Back to Revenue Records
+              Back to Revenue Ledger
             </Button>
           </div>
         </AuthenticatedLayout>
@@ -136,11 +136,11 @@ export default function EditRevenuePage() {
      return (
       <AuthGuard>
         <AuthenticatedLayout>
-          <PageHeader title="Edit Revenue Record" />
+          <PageHeader title="Edit Other Revenue" />
            <div className="text-center py-10 text-muted-foreground">
              <p>Revenue record data could not be loaded.</p>
              <Button variant="outline" onClick={() => router.push("/revenue")} className="mt-4">
-                Back to Revenue Records
+                Back to Revenue Ledger
             </Button>
            </div>
         </AuthenticatedLayout>
@@ -152,8 +152,8 @@ export default function EditRevenuePage() {
     <AuthGuard>
       <AuthenticatedLayout>
         <PageHeader
-          title={`Edit Revenue: ${revenueRecord.source}`}
-          description="Update the details of this revenue record."
+          title={`Edit Other Revenue: ${revenueRecord.source}`}
+          description="Update the details of this miscellaneous revenue record."
         />
         <RevenueForm 
           initialData={revenueRecord} 
@@ -165,4 +165,3 @@ export default function EditRevenuePage() {
     </AuthGuard>
   );
 }
-

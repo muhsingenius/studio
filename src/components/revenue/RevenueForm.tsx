@@ -70,7 +70,7 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
     <Card className="w-full max-w-2xl mx-auto shadow-lg">
       <CardHeader>
         <CardTitle className="font-headline text-2xl">
-          {mode === "create" ? "Record New Revenue" : "Edit Revenue Record"}
+          {mode === "create" ? "Record Other Revenue" : "Edit Other Revenue Record"}
         </CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit(processSubmit)}>
