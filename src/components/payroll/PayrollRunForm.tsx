@@ -42,35 +42,32 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
-    const { control, register, watch, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+    const { control, register, watch, handleSubmit, formState: { errors } } = useForm<FormValues>({
         defaultValues: {
             period: new Date(),
             paymentDate: new Date(),
             items: [],
         }
     });
-    
+
+    const { fields, replace } = useFieldArray({ control, name: "items" });
+
     // This useEffect ensures the form is correctly populated when the employee data loads.
+    // It uses the `replace` method from useFieldArray which is more reliable for dynamic lists.
     useEffect(() => {
-        if (employees.length > 0) {
-            reset({
-                period: new Date(),
-                paymentDate: new Date(),
-                items: employees.map(e => ({
-                    employeeId: e.id,
-                    name: e.name,
-                    compensationType: e.compensationType,
-                    grossSalary: e.grossSalary,
-                    wageRate: e.wageRate,
-                    wagePeriod: e.wagePeriod,
-                    unitsWorked: "",
-                })),
-            });
-        }
-    }, [employees, reset]);
+        const employeeItems = employees.map(e => ({
+            employeeId: e.id,
+            name: e.name,
+            compensationType: e.compensationType,
+            grossSalary: e.grossSalary || 0,
+            wageRate: e.wageRate || 0,
+            wagePeriod: e.wagePeriod,
+            unitsWorked: "",
+        }));
+        replace(employeeItems);
+    }, [employees, replace]);
 
 
-    const { fields } = useFieldArray({ control, name: "items" });
     const watchedItems = watch("items");
 
     const payrollData = useMemo(() => {
@@ -90,8 +87,8 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
             const originalEmployee = employeeMap.get(formItem.employeeId);
             let grossPay = 0;
 
-            if (formItem.compensationType === 'Salary') {
-                grossPay = formItem.grossSalary || 0;
+            if (formItem.compensationType === 'Salary' && originalEmployee) {
+                grossPay = originalEmployee.grossSalary || 0;
             } else if (originalEmployee) {
                 const rate = originalEmployee.wageRate || 0;
                 const units = parseFloat(formItem.unitsWorked) || 0;
@@ -203,10 +200,10 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
                                             <span className="text-muted-foreground">Salary</span>
                                         )}
                                     </TableCell>
-                                    <TableCell>{payrollData.items[index]?.grossPay.toFixed(2)}</TableCell>
-                                    <TableCell>{payrollData.items[index]?.employeeSSNIT.toFixed(2)}</TableCell>
-                                    <TableCell>{payrollData.items[index]?.paye.toFixed(2)}</TableCell>
-                                    <TableCell className="font-bold">{payrollData.items[index]?.netPay.toFixed(2)}</TableCell>
+                                    <TableCell>{(payrollData.items[index]?.grossPay || 0).toFixed(2)}</TableCell>
+                                    <TableCell>{(payrollData.items[index]?.employeeSSNIT || 0).toFixed(2)}</TableCell>
+                                    <TableCell>{(payrollData.items[index]?.paye || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-bold">{(payrollData.items[index]?.netPay || 0).toFixed(2)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
