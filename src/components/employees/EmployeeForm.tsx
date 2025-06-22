@@ -86,14 +86,15 @@ export default function EmployeeForm({ initialData, onSave, isSaving, mode }: Em
   const watchedCompensationType = watch("compensationType");
 
   const onSubmit: SubmitHandler<EmployeeFormInputs> = async (data) => {
-    // Clear unused compensation fields before saving
-    if (data.compensationType === 'Salary') {
-      data.wageRate = undefined;
-      data.wagePeriod = undefined;
+    const dataToSave = { ...data };
+    // Clear unused compensation fields before saving to prevent storing `undefined`
+    if (dataToSave.compensationType === 'Salary') {
+      delete (dataToSave as any).wageRate;
+      delete (dataToSave as any).wagePeriod;
     } else {
-      data.grossSalary = undefined;
+      delete (dataToSave as any).grossSalary;
     }
-    await onSave(data as Omit<Employee, "id" | "businessId" | "createdAt" | "updatedAt">);
+    await onSave(dataToSave as Omit<Employee, "id" | "businessId" | "createdAt" | "updatedAt">);
   };
 
   return (
