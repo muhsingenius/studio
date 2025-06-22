@@ -77,10 +77,23 @@ export default function PayrollSettingsPage() {
     setIsSaving(true);
     try {
       const businessDocRef = doc(db, "businesses", currentUser.businessId);
+      
+      const businessSnap = await getDoc(businessDocRef);
+      if (!businessSnap.exists()) {
+          throw new Error("Business document not found.");
+      }
+      
+      const currentBusinessData = businessSnap.data() as Business;
+      const newSettings = {
+          ...(currentBusinessData.settings || {}),
+          payroll: data,
+      };
+      
       await updateDoc(businessDocRef, {
-        'settings.payroll': data,
+        settings: newSettings,
         updatedAt: serverTimestamp(),
       });
+      
       setSettings(data);
       toast({ title: "Settings Saved", description: "Payroll settings have been updated." });
     } catch (error) {
