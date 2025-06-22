@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
@@ -14,6 +14,7 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc, serverTimestamp
 import PayrollRunForm from "@/components/payroll/PayrollRunForm";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Default settings if nothing is found in Firestore
 const defaultPayrollSettings: Omit<PayrollSettings, "id" | "businessId"> = {
@@ -40,6 +41,7 @@ export default function NewPayrollPage() {
     const [settings, setSettings] = useState<PayrollSettings | null>(null);
     const [expenseCategories, setExpenseCategories] = useState<{id: string, name: string}[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [filterType, setFilterType] = useState<'all' | 'salary' | 'wage'>('all');
 
     const fetchData = useCallback(async () => {
         if (!currentUser?.businessId) {
@@ -81,6 +83,14 @@ export default function NewPayrollPage() {
         fetchData();
     }, [fetchData]);
     
+    const filteredEmployees = useMemo(() => {
+        if (filterType === 'all') {
+            return employees;
+        }
+        const compensationType = filterType.charAt(0).toUpperCase() + filterType.slice(1);
+        return employees.filter(e => e.compensationType === compensationType);
+    }, [employees, filterType]);
+    
     const handleFinalize = async (payrollRunData: any) => {
         if (!currentUser?.businessId) return;
 
@@ -102,7 +112,7 @@ export default function NewPayrollPage() {
                 date: payrollRunData.paymentDate,
                 vendor: "Company Payroll",
                 categoryId: salaryCategoryId,
-                description: `Payroll for ${format(payrollRunData.periodStartDate, 'MMM yyyy')}`,
+                description: `Payroll for ${format(payrollRunData.periodStartDate, 'MMM dd')} - ${format(payrollRunData.periodEndDate, 'dd, yyyy')}`,
                 amount: payrollRunData.totalCostToBusiness,
                 paymentMethod: 'Bank Transfer', // Default for payroll
                 recordedBy: currentUser.id,
@@ -132,22 +142,37 @@ export default function NewPayrollPage() {
     return (
         <AuthGuard>
             <AuthenticatedLayout>
-                <PageHeader title="New Payroll Run" description="Calculate and process payroll for your employees." />
-                {isLoading && <LoadingSpinner fullPage />}
-                {!isLoading && settings && employees.length > 0 && (
-                    <PayrollRunForm 
-                        employees={employees}
-                        settings={settings}
-                        onFinalize={handleFinalize}
-                    />
-                )}
-                 {!isLoading && (employees.length === 0 || !settings) && (
-                    <div className="text-center text-muted-foreground p-8 border rounded-lg">
-                        <p>Cannot start a payroll run.</p>
-                        {employees.length === 0 && <p>You have no active employees. Please add employees first.</p>}
-                        {!settings && <p>Payroll settings are not configured.</p>}
-                    </div>
-                 )}
+                <PageHeader title="New Payroll Run" description="Select a group and process payroll for your employees." />
+
+                <Tabs value={filterType} onValueChange={(value) => setFilterType(value as any)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 md:w-[400px]">
+                        <TabsTrigger value="all">All Employees</TabsTrigger>
+                        <TabsTrigger value="salary">Salary Only</TabsTrigger>
+                        <TabsTrigger value="wage">Wage Only</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+                
+                <div className="mt-4">
+                    {isLoading && <LoadingSpinner fullPage />}
+                    {!isLoading && settings && employees.length > 0 && (
+                        <PayrollRunForm 
+                            employees={filteredEmployees}
+                            settings={settings}
+                            onFinalize={handleFinalize}
+                            filterType={filterType}
+                        />
+                    )}
+                    {!isLoading && employees.length === 0 && (
+                        <div className="text-center text-muted-foreground p-8 border rounded-lg mt-4">
+                            <p>You have no active employees. Please add employees first.</p>
+                        </div>
+                    )}
+                    {!isLoading && !settings && !employees.length && (
+                        <div className="text-center text-muted-foreground p-8 border rounded-lg mt-4">
+                        <p>Payroll settings are not configured.</p>
+                        </div>
+                    )}
+                </div>
             </AuthenticatedLayout>
         </AuthGuard>
     );
