@@ -6,7 +6,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import CashSaleForm, { type CashSaleFormInputs } from "@/components/sales/DirectSaleForm";
-import type { Customer, TaxSettings, CashSale, Item as ProductItem, CashSaleItem } from "@/types";
+import type { Customer, TaxSettings, CashSale, Item as ProductItem, CashSaleItem, Business } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
@@ -22,7 +22,6 @@ import {
   orderBy,
   Timestamp,
   where,
-  writeBatch,
   runTransaction,
   DocumentReference
 } from "firebase/firestore";
@@ -36,10 +35,7 @@ const defaultTaxSettings: TaxSettings = {
   customTaxes: [],
 };
 
-// Function to generate a unique sale number
 const generateSaleNumber = async () => {
-  // This is a simplified version. In a real app, you might query Firestore 
-  // for the last sale number or use a more robust counter.
   const prefix = "CSALE";
   const date = new Date();
   const year = date.getFullYear();
@@ -72,22 +68,27 @@ export default function NewCashSalePage() {
         const num = await generateSaleNumber();
         setGeneratedSaleNumber(num);
 
-        const customersQuery = query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"));
-        const customerSnapshot = await getDocs(customersQuery);
+        const [customerSnapshot, itemsSnapshot, businessSnap] = await Promise.all([
+          getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
+          getDocs(query(collection(db, "items"), orderBy("name", "asc"))),
+          getDoc(doc(db, "businesses", currentUser.businessId))
+        ]);
+
         setCustomers(customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date() } as Customer)));
 
-        const taxSettingsDocRef = doc(db, "settings", "taxConfiguration"); 
-        const taxSettingsSnap = await getDoc(taxSettingsDocRef);
-        setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
+        if (businessSnap.exists()) {
+            setTaxSettings(businessSnap.data().settings?.tax || defaultTaxSettings);
+        } else {
+            toast({ title: "Warning", description: "Business details not found. Using default tax settings.", variant: "destructive" });
+            setTaxSettings(defaultTaxSettings);
+        }
 
-        const itemsQuery = query(collection(db, "items"), orderBy("name", "asc")); // Consider filtering by businessId if items are business-specific
-        const itemsSnapshot = await getDocs(itemsQuery);
         setAvailableItems(itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() || new Date() } as ProductItem)));
 
       } catch (error) {
         console.error("Error fetching initial data for new cash sale: ", error);
         toast({ title: "Error Loading Data", description: "Could not load required data.", variant: "destructive" });
-        if (!taxSettings) setTaxSettings(defaultTaxSettings); // Fallback
+        if (!taxSettings) setTaxSettings(defaultTaxSettings);
       } finally {
         setIsLoadingData(false);
       }
@@ -108,8 +109,6 @@ export default function NewCashSalePage() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        // Phase 1: All READS
-        const itemUpdates: Array<{ ref: DocumentReference; newQuantity: number; name: string }> = [];
         const itemDocsToRead: Array<{ id: string; ref: DocumentReference; saleItem: CashSaleItem; productItem?: ProductItem }> = [];
 
         for (const saleItem of salePayload.items) {
@@ -133,37 +132,20 @@ export default function NewCashSalePage() {
         for (let i = 0; i < itemDocsToRead.length; i++) {
           const itemDocSnap = itemSnapshots[i];
           const { saleItem, productItem, ref: itemDocRef } = itemDocsToRead[i];
-
-          if (!itemDocSnap.exists()) {
-            throw new Error(`Item with ID ${saleItem.itemId} (${productItem?.name || 'Unknown item'}) not found.`);
-          }
-          const currentQuantity = itemDocSnap.data().quantityOnHand || 0;
-          const newQuantity = currentQuantity - saleItem.quantity;
-
-          if (newQuantity < 0 && productItem) {
-            console.warn(`Inventory Alert: Stock for "${productItem.name}" is now negative (${newQuantity}). Current: ${currentQuantity}, Sold: ${saleItem.quantity}.`);
-          }
-          itemUpdates.push({ ref: itemDocRef, newQuantity, name: productItem?.name || 'Unknown Item' });
+          if (!itemDocSnap.exists()) throw new Error(`Item with ID ${saleItem.itemId} (${productItem?.name || 'Unknown'}) not found.`);
+          const newQuantity = (itemDocSnap.data().quantityOnHand || 0) - saleItem.quantity;
+          transaction.update(itemDocRef, { quantityOnHand: newQuantity, updatedAt: serverTimestamp() });
         }
 
-        // Phase 2: All WRITES
-        // 2a. Create the CashSale document
-        const cashSaleDocRef = doc(collection(db, "cashSales")); // Generate new ID for the sale
-        const newSaleData: CashSale = {
-          ...salePayload,
-          id: cashSaleDocRef.id, // Use the generated ID
+        const cashSaleDocRef = doc(collection(db, "cashSales"));
+        transaction.set(cashSaleDocRef, { 
+          ...salePayload, 
           saleNumber: generatedSaleNumber,
           businessId: currentUser.businessId!,
           recordedBy: currentUser.id!,
-          createdAt: new Date(), // Placeholder, will be serverTimestamp in the transaction
-        };
-        transaction.set(cashSaleDocRef, { ...newSaleData, createdAt: serverTimestamp() });
-
-        // 2b. Update inventory for each item sold
-        for (const update of itemUpdates) {
-          transaction.update(update.ref, { quantityOnHand: update.newQuantity, updatedAt: serverTimestamp() });
-        }
-      }); // End of transaction
+          createdAt: serverTimestamp() 
+        });
+      });
 
       toast({ title: "Cash Sale Recorded", description: `Sale ${generatedSaleNumber} has been saved successfully.` });
       

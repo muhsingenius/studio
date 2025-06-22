@@ -6,16 +6,14 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import PayrollSettingsForm from "@/components/settings/PayrollSettingsForm";
-import type { PayrollSettings } from "@/types";
+import type { PayrollSettings, Business } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
-const PAYROLL_SETTINGS_DOC_ID = "payrollConfiguration";
-
-const defaultPayrollSettings: Omit<PayrollSettings, "id"> = {
+const defaultPayrollSettings: PayrollSettings = {
   ssnitRates: {
     employeeContribution: 0.055,
     employerContribution: 0.13,
@@ -39,17 +37,21 @@ export default function PayrollSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchSettings = useCallback(async () => {
+    if (!currentUser?.businessId) {
+      toast({ title: "Error", description: "Business context not available.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
-      const docRef = doc(db, "settings", PAYROLL_SETTINGS_DOC_ID);
-      const docSnap = await getDoc(docRef);
+      const businessDocRef = doc(db, "businesses", currentUser.businessId);
+      const docSnap = await getDoc(businessDocRef);
       if (docSnap.exists()) {
-        setSettings({ id: docSnap.id, ...docSnap.data() } as PayrollSettings);
+        const businessData = docSnap.data() as Business;
+        setSettings(businessData.settings?.payroll || defaultPayrollSettings);
       } else {
-        setSettings({
-          id: PAYROLL_SETTINGS_DOC_ID,
-          ...defaultPayrollSettings,
-        });
+        console.warn("No business document found, using default payroll settings.");
+        setSettings(defaultPayrollSettings);
       }
     } catch (error) {
       console.error("Error fetching payroll settings:", error);
@@ -57,22 +59,29 @@ export default function PayrollSettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [currentUser?.businessId, toast]);
 
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
 
-  const handleSave = async (data: Omit<PayrollSettings, "id">) => {
+  const handleSave = async (data: PayrollSettings) => {
     if (currentUser?.role !== "Admin" && currentUser?.role !== "Accountant") {
         toast({ title: "Permission Denied", description: "You are not authorized to change payroll settings.", variant: "destructive" });
         return;
     }
+    if (!currentUser?.businessId) {
+      toast({ title: "Error", description: "Business context not available.", variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
     try {
-      const docRef = doc(db, "settings", PAYROLL_SETTINGS_DOC_ID);
-      await setDoc(docRef, data);
-      setSettings({ id: PAYROLL_SETTINGS_DOC_ID, ...data });
+      const businessDocRef = doc(db, "businesses", currentUser.businessId);
+      await updateDoc(businessDocRef, {
+        'settings.payroll': data,
+        updatedAt: serverTimestamp(),
+      });
+      setSettings(data);
       toast({ title: "Settings Saved", description: "Payroll settings have been updated." });
     } catch (error) {
       console.error("Error saving payroll settings:", error);

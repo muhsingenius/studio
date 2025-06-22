@@ -55,15 +55,12 @@ export default function NewInvoicePage() {
       }
       setIsLoadingData(true);
       try {
-         // Fetch all data in parallel
-        const [customerSnapshot, taxSettingsSnap, itemsSnapshot, businessSnap] = await Promise.all([
+        const [customerSnapshot, itemsSnapshot, businessSnap] = await Promise.all([
           getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
-          getDoc(doc(db, "settings", "taxConfiguration")),
           getDocs(query(collection(db, "items"), orderBy("name", "asc"))),
           getDoc(doc(db, "businesses", currentUser.businessId!))
         ]);
 
-        // Process Customers
         const customersData = customerSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
@@ -71,17 +68,15 @@ export default function NewInvoicePage() {
         } as Customer));
         setCustomers(customersData);
 
-        // Process Tax Settings
-        setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
-        
-        // Process Business Details
         if (businessSnap.exists()) {
-            setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
+            const businessData = { id: businessSnap.id, ...businessSnap.data() } as Business;
+            setBusiness(businessData);
+            setTaxSettings(businessData.settings?.tax || defaultTaxSettings);
         } else {
-            toast({ title: "Warning", description: "Business details not found. PDF download may not work correctly.", variant: "destructive" });
+            toast({ title: "Warning", description: "Business details not found. Using default tax settings.", variant: "destructive" });
+            setTaxSettings(defaultTaxSettings);
         }
 
-        // Process Items
         const itemsData = itemsSnapshot.docs.map(docSnapshot => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),

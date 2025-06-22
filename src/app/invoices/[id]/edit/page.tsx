@@ -68,60 +68,50 @@ export default function EditInvoicePage() {
       setIsLoadingData(true);
       setError(null);
       try {
-        // Fetch all data in parallel
-        const [invoiceSnap, customerSnapshot, taxSettingsSnap, itemsSnapshot, businessSnap] = await Promise.all([
+        const [invoiceSnap, customerSnapshot, itemsSnapshot, businessSnap] = await Promise.all([
           getDoc(doc(db, "invoices", invoiceId)),
           getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
-          getDoc(doc(db, "settings", "taxConfiguration")),
           getDocs(query(collection(db, "items"), orderBy("name", "asc"))),
           getDoc(doc(db, "businesses", currentUser.businessId!))
         ]);
 
-        // Process Invoice
         if (invoiceSnap.exists()) {
           const data = invoiceSnap.data();
           if (data.businessId !== currentUser.businessId) {
             setError("Access Denied. This invoice does not belong to your business.");
-            toast({ title: "Access Denied", description: "You do not have permission to edit this invoice.", variant: "destructive" });
+            toast({ title: "Access Denied", variant: "destructive" });
             setInvoice(null);
           } else {
-            const fetchedInvoice = {
-              id: invoiceSnap.id,
-              ...data,
+            setInvoice({
+              id: invoiceSnap.id, ...data,
               dateIssued: (data.dateIssued as Timestamp)?.toDate ? (data.dateIssued as Timestamp).toDate() : new Date(data.dateIssued),
               dueDate: (data.dueDate as Timestamp)?.toDate ? (data.dueDate as Timestamp).toDate() : new Date(data.dueDate),
               totalPaidAmount: data.totalPaidAmount || 0,
               createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
-            } as Invoice;
-            setInvoice(fetchedInvoice);
+            } as Invoice);
           }
         } else {
           setError("Invoice not found.");
-          toast({ title: "Not Found", description: `Invoice with ID ${invoiceId} does not exist.`, variant: "destructive" });
+          toast({ title: "Not Found", variant: "destructive" });
         }
 
-        // Process Customers
         const customersData = customerSnapshot.docs.map(docSnapshot => ({
-          id: docSnapshot.id,
-          ...docSnapshot.data(),
+          id: docSnapshot.id, ...docSnapshot.data(),
           createdAt: (docSnapshot.data().createdAt as Timestamp)?.toDate ? (docSnapshot.data().createdAt as Timestamp).toDate() : new Date(),
         } as Customer));
         setCustomers(customersData);
 
-        // Process Tax Settings
-        setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
-        
-        // Process Business Details
         if (businessSnap.exists()) {
-            setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
+            const businessData = { id: businessSnap.id, ...businessSnap.data() } as Business;
+            setBusiness(businessData);
+            setTaxSettings(businessData.settings?.tax || defaultTaxSettings);
         } else {
             toast({ title: "Warning", description: "Business details not found. PDF download may not work correctly.", variant: "destructive" });
+            setTaxSettings(defaultTaxSettings);
         }
 
-        // Process Items
         const itemsData = itemsSnapshot.docs.map(docSnapshot => ({
-          id: docSnapshot.id,
-          ...docSnapshot.data(),
+          id: docSnapshot.id, ...docSnapshot.data(),
            createdAt: (docSnapshot.data().createdAt as Timestamp)?.toDate ? (docSnapshot.data().createdAt as Timestamp).toDate() : new Date(),
           updatedAt: (docSnapshot.data().updatedAt as Timestamp)?.toDate ? (docSnapshot.data().updatedAt as Timestamp).toDate() : undefined,
         } as Item));
@@ -130,7 +120,7 @@ export default function EditInvoicePage() {
       } catch (err: any) {
         console.error("Error fetching data for edit invoice: ", err);
         setError("Failed to fetch invoice or related data.");
-        toast({ title: "Error", description: "Could not retrieve data for editing.", variant: "destructive" });
+        toast({ title: "Error", variant: "destructive" });
       } finally {
         setIsLoadingData(false);
       }
@@ -166,7 +156,6 @@ export default function EditInvoicePage() {
               const finalInvoiceForPdf: Invoice = {
                   ...invoice,
                   ...invoicePayload,
-                  // id and createdAt are already in the `invoice` object
               };
               generateInvoicePDF(finalInvoiceForPdf, business);
           } else {

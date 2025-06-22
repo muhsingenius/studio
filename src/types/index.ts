@@ -129,7 +129,6 @@ export interface TaxSettings {
   nhil: number;
   getFund: number;
   customTaxes: TaxRate[];
-  businessId?: string; 
 }
 
 export interface Notification {
@@ -142,6 +141,23 @@ export interface Notification {
   link?: string;
 }
 
+export interface PAYEBracket {
+    id: string;
+    from: number;
+    to: number | null; // null for the highest bracket
+    rate: number; // e.g., 0.175 for 17.5%
+}
+
+export interface SSNITRates {
+    employeeContribution: number; // e.g., 0.055 for 5.5%
+    employerContribution: number; // e.g., 0.13 for 13%
+}
+
+export interface PayrollSettings {
+    payeBrackets: PAYEBracket[];
+    ssnitRates: SSNITRates;
+}
+
 export interface Business {
   id: string;
   name: string;
@@ -152,6 +168,11 @@ export interface Business {
   createdBy: string; 
   adminUids: string[]; 
   createdAt: Date;
+  updatedAt?: Date;
+  settings?: {
+    tax?: TaxSettings;
+    payroll?: PayrollSettings;
+  }
 }
 
 export interface BusinessUser {
@@ -258,24 +279,6 @@ export interface Employee {
   isActive: boolean;
   createdAt: Date;
   updatedAt?: Date;
-}
-
-export interface PAYEBracket {
-    id: string;
-    from: number;
-    to: number | null; // null for the highest bracket
-    rate: number; // e.g., 0.175 for 17.5%
-}
-
-export interface SSNITRates {
-    employeeContribution: number; // e.g., 0.055 for 5.5%
-    employerContribution: number; // e.g., 0.13 for 13%
-}
-
-export interface PayrollSettings {
-    id: string; // e.g., "payrollConfiguration"
-    payeBrackets: PAYEBracket[];
-    ssnitRates: SSNITRates;
 }
 
 export interface PayrollItem {

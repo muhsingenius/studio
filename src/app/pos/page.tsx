@@ -72,11 +72,10 @@ export default function POSPage() {
     }
     setIsLoading(true);
     try {
-      const [itemsSnap, customersSnap, categoriesSnap, taxSettingsSnap, businessSnap] = await Promise.all([
+      const [itemsSnap, customersSnap, categoriesSnap, businessSnap] = await Promise.all([
         getDocs(query(collection(db, "items"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
         getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
         getDocs(query(collection(db, "itemCategories"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
-        getDoc(doc(db, "settings", "taxConfiguration")),
         getDoc(doc(db, "businesses", currentUser.businessId)),
       ]);
 
@@ -88,13 +87,14 @@ export default function POSPage() {
       
       const categoriesData = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemCategory));
       setCategories(categoriesData);
-
-      setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
       
       if (businessSnap.exists()) {
-        setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
+        const businessData = { id: businessSnap.id, ...businessSnap.data() } as Business;
+        setBusiness(businessData);
+        setTaxSettings(businessData.settings?.tax || defaultTaxSettings);
       } else {
-        toast({ title: "Warning", description: "Business details not found. Receipt printing may be incomplete.", variant: "destructive" });
+        toast({ title: "Warning", description: "Business details not found. Using default settings.", variant: "destructive" });
+        setTaxSettings(defaultTaxSettings);
       }
 
     } catch (error) {

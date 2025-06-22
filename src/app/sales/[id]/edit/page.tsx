@@ -7,7 +7,7 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import AuthenticatedLayout from "@/components/layout/AuthenticatedLayout";
 import PageHeader from "@/components/shared/PageHeader";
 import CashSaleForm, { type CashSaleFormInputs } from "@/components/sales/DirectSaleForm";
-import type { Customer, TaxSettings, CashSale, Item as ProductItem } from "@/types";
+import type { Customer, TaxSettings, CashSale, Item as ProductItem, Business } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { db } from "@/lib/firebase";
@@ -65,9 +65,13 @@ export default function EditCashSalePage() {
     setIsLoadingData(true);
     setError(null);
     try {
-      const saleDocRef = doc(db, "cashSales", saleId);
-      const saleSnap = await getDoc(saleDocRef);
-
+      const [saleSnap, customerSnapshot, itemsSnapshot, businessSnap] = await Promise.all([
+          getDoc(doc(db, "cashSales", saleId)),
+          getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
+          getDocs(query(collection(db, "items"), orderBy("name", "asc"))),
+          getDoc(doc(db, "businesses", currentUser.businessId))
+      ]);
+      
       if (saleSnap.exists()) {
         const data = saleSnap.data();
         if (data.businessId !== currentUser.businessId) {
@@ -76,8 +80,7 @@ export default function EditCashSalePage() {
           setSale(null);
         } else {
           setSale({
-            id: saleSnap.id,
-            ...data,
+            id: saleSnap.id, ...data,
             date: (data.date as Timestamp)?.toDate ? (data.date as Timestamp).toDate() : new Date(data.date),
             createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
           } as CashSale);
@@ -87,16 +90,14 @@ export default function EditCashSalePage() {
         toast({ title: "Not Found", variant: "destructive" });
       }
 
-      const customersQuery = query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"));
-      const customerSnapshot = await getDocs(customersQuery);
       setCustomers(customerSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), createdAt: (docSnap.data().createdAt as Timestamp)?.toDate() || new Date() } as Customer)));
       
-      const taxSettingsDocRef = doc(db, "settings", "taxConfiguration");
-      const taxSettingsSnap = await getDoc(taxSettingsDocRef);
-      setTaxSettings(taxSettingsSnap.exists() ? taxSettingsSnap.data() as TaxSettings : defaultTaxSettings);
+      if (businessSnap.exists()) {
+          setTaxSettings(businessSnap.data().settings?.tax || defaultTaxSettings);
+      } else {
+          setTaxSettings(defaultTaxSettings);
+      }
 
-      const itemsQuery = query(collection(db, "items"), orderBy("name", "asc"));
-      const itemsSnapshot = await getDocs(itemsQuery);
       setAvailableItems(itemsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), createdAt: (docSnap.data().createdAt as Timestamp)?.toDate() || new Date() } as ProductItem)));
 
     } catch (err: any) {
@@ -125,12 +126,10 @@ export default function EditCashSalePage() {
     setIsSaving(true);
     try {
       const saleDocRef = doc(db, "cashSales", sale.id);
-      // For now, only allow updating notes and paymentReference.
-      // Item and amount changes are complex due to inventory.
       const updateData: Partial<CashSale> = {
         notes: salePayload.notes,
         paymentReference: salePayload.paymentReference,
-        updatedAt: serverTimestamp(), // Add an updatedAt field to CashSale type if needed
+        updatedAt: serverTimestamp(),
       };
       
       await updateDoc(saleDocRef, updateData);
