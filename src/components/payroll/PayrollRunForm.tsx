@@ -63,7 +63,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
     const { fields, replace } = useFieldArray({ control, name: "items" });
 
     useEffect(() => {
-        const employeeItems = employees.map(e => ({
+        replace(employees.map(e => ({
             employeeId: e.id,
             name: e.name,
             compensationType: e.compensationType,
@@ -71,12 +71,9 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
             wageRate: e.wageRate || 0,
             wagePeriod: e.wagePeriod,
             unitsWorked: "",
-        }));
-        replace(employeeItems);
+        })));
     }, [employees, replace]);
-
-    // This effect now safely updates only the date range when the filter changes,
-    // without clearing the employee list.
+    
     useEffect(() => {
         setValue('periodRange', getDefaultDateRange());
     }, [filterType, getDefaultDateRange, setValue]);
@@ -84,7 +81,9 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
     const watchedItems = watch("items");
     const employeeMap = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
 
-    const payrollData = useMemo(() => {
+    // Calculate payroll data on every render to ensure real-time updates.
+    // useMemo was causing issues with stale data when inputs changed.
+    const payrollData = (() => {
         const results: (PayrollItem & { unitsWorked: string })[] = [];
         const totals = {
             totalGrossPay: 0,
@@ -133,7 +132,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
         });
 
         return { items: results, totals };
-    }, [watchedItems, settings, employeeMap]);
+    })();
 
     const handleFormSubmit = (data: FormValues) => {
         setIsSaving(true);
