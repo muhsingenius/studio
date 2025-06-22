@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes, MonitorSmartphone } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes, MonitorSmartphone, Wallet, FolderKanban } from "lucide-react";
 import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   },
   { href: "/settings/tax", label: "Tax Setup", icon: Settings, roles: ["Admin", "Accountant"] },
   { href: "/settings/categories", label: "Item Categories", icon: Shapes, roles: ["Admin", "Accountant"] },
+  { href: "/settings/expense-categories", label: "Expense Categories", icon: FolderKanban, roles: ["Admin", "Accountant"] },
   { href: "/admin/users", label: "User Management", icon: ShieldCheck, roles: ["Admin"] },
 ];
 

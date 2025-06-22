@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, Timestamp, orderBy, limit, doc, getDoc } from "firebase/firestore";
-import type { Payment, RevenueRecord, Invoice, CashSale } from "@/types";
+import type { Payment, RevenueRecord, Invoice, CashSale, Expense } from "@/types";
 import { format } from "date-fns";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
@@ -20,8 +20,8 @@ interface DashboardSummary {
   totalInvoiceRevenue: number;
   totalCashSaleRevenue: number;
   totalOtherRevenue: number;
-  totalExpenses: number; // Placeholder for now
-  netProfit: number; // Placeholder for now
+  totalExpenses: number;
+  netProfit: number;
   taxObligation: number; // Placeholder for now
   overdueInvoicesCount: number;
   activeCustomersCount: number; // Placeholder for now
@@ -29,7 +29,7 @@ interface DashboardSummary {
 
 interface TransactionItem {
   id: string;
-  type: "Invoice Payment" | "Cash Sale" | "Other Revenue" | "Expense"; // Added Expense for future
+  type: "Invoice Payment" | "Cash Sale" | "Other Revenue" | "Expense";
   description: string;
   amount: number;
   date: Date;
@@ -54,6 +54,7 @@ export default function DashboardPage() {
       let totalCashSaleRevenue = 0;
       let totalOtherRevenue = 0;
       let overdueInvoicesCount = 0;
+      let totalExpenses = 0;
       const fetchedTransactions: TransactionItem[] = [];
 
       // Fetch Invoice Payments and related Invoice data
@@ -106,7 +107,6 @@ export default function DashboardPage() {
         });
       });
 
-
       // Fetch Other Revenue Records
       const revenueRecordsQuery = query(
         collection(db, "revenueRecords"),
@@ -125,6 +125,25 @@ export default function DashboardPage() {
           rawDate: (record.dateReceived as Timestamp)?.toDate ? (record.dateReceived as Timestamp).toDate() : new Date(record.dateReceived as any),
         });
       });
+
+      // Fetch Expenses
+      const expensesQuery = query(
+        collection(db, "expenses"),
+        where("businessId", "==", currentUser.businessId)
+      );
+      const expensesSnapshot = await getDocs(expensesQuery);
+      expensesSnapshot.forEach((docSnap) => {
+        const expense = { id: docSnap.id, ...docSnap.data() } as Expense;
+        totalExpenses += expense.amount;
+        fetchedTransactions.push({
+            id: expense.id,
+            type: "Expense",
+            description: expense.description,
+            amount: -expense.amount, // Represent expenses as negative numbers
+            date: (expense.date as Timestamp)?.toDate ? (expense.date as Timestamp).toDate() : new Date(expense.date as any),
+            rawDate: (expense.date as Timestamp)?.toDate ? (expense.date as Timestamp).toDate() : new Date(expense.date as any),
+        });
+      });
       
       // Fetch Overdue Invoices Count
       const overdueInvoicesQuery = query(
@@ -135,8 +154,7 @@ export default function DashboardPage() {
       const overdueInvoicesSnapshot = await getDocs(overdueInvoicesQuery);
       overdueInvoicesCount = overdueInvoicesSnapshot.size;
       
-      // Placeholder for Expenses, Profit, Tax, Customers - these need their own data sources
-      const totalExpenses = 0; // Replace with actual expense fetching
+      // Placeholder for Active Customers
       const activeCustomersCount = 0; // Replace with actual customer count
       const totalRevenue = totalInvoiceRevenue + totalCashSaleRevenue + totalOtherRevenue;
 
@@ -145,8 +163,8 @@ export default function DashboardPage() {
         totalInvoiceRevenue,
         totalCashSaleRevenue,
         totalOtherRevenue,
-        totalExpenses, // Placeholder
-        netProfit: totalRevenue - totalExpenses, // Simplified profit
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
         taxObligation: totalRevenue * 0.15, // Very rough VAT estimate
         overdueInvoicesCount,
         activeCustomersCount, // Placeholder
@@ -210,6 +228,28 @@ export default function DashboardPage() {
           
           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+              <TrendingDown className="h-5 w-5 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">GHS {summaryData.totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <p className="text-xs text-muted-foreground">Total operational spending</p>
+            </CardContent>
+          </Card>
+          
+           <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 col-span-1 md:col-span-2 lg:col-span-2 bg-primary/90 text-primary-foreground">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+              <DollarSign className="h-5 w-5 text-primary-foreground/70" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">GHS {summaryData.netProfit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <p className="text-xs text-primary-foreground/70">Total Revenue - Total Expenses</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Revenue from Invoices</CardTitle>
               <Receipt className="h-5 w-5 text-primary" />
             </CardHeader>
@@ -232,34 +272,12 @@ export default function DashboardPage() {
 
            <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Other Revenue</CardTitle>
-              <Coins className="h-5 w-5 text-accent" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">GHS {summaryData.totalOtherRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-              <p className="text-xs text-muted-foreground">Direct sales, commissions, etc.</p>
-            </CardContent>
-          </Card>
-
-
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 col-span-1 md:col-span-2 lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <TrendingDown className="h-5 w-5 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">GHS {summaryData.totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-              <p className="text-xs text-muted-foreground">Feature coming soon</p>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Overdue Invoices</CardTitle>
               <AlertTriangle className="h-5 w-5 text-destructive" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{summaryData.overdueInvoicesCount}</div>
+               <p className="text-xs text-muted-foreground">Invoices past their due date</p>
             </CardContent>
           </Card>
 
@@ -279,7 +297,7 @@ export default function DashboardPage() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>A quick look at your latest financial activities (invoice payments & other revenue).</CardDescription>
+              <CardDescription>A quick look at your latest financial activities.</CardDescription>
             </CardHeader>
             <CardContent>
               {recentTransactions.length > 0 ? (
@@ -293,7 +311,8 @@ export default function DashboardPage() {
                             tx.type === "Invoice Payment" ? "text-primary" :
                             tx.type === "Cash Sale" ? "text-blue-600" :
                             tx.type === "Other Revenue" ? "text-accent" :
-                            "text-destructive"
+                            tx.type === "Expense" ? "text-destructive" :
+                            "text-foreground"
                             )}>{tx.type}</span>
                         </p>
                       </div>

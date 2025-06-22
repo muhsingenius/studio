@@ -1,5 +1,4 @@
 
-
 export type Role = "Admin" | "Accountant" | "Sales" | "Staff";
 
 export interface User {
@@ -94,17 +93,26 @@ export interface Invoice {
   businessId?: string; 
 }
 
-export interface Expense {
-  id:string;
-  vendor: string;
-  category: string;
-  description?: string;
-  amount: number;
-  date: Date;
-  paymentMethod: PaymentMethod;
-  taxType?: string;
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  businessId: string;
   createdAt: Date;
-  businessId?: string; 
+}
+
+export interface Expense {
+  id: string;
+  businessId: string;
+  date: Date;
+  vendor: string;
+  categoryId: string;
+  description: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  reference?: string;
+  recordedBy: string;
+  createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface TaxRate {
