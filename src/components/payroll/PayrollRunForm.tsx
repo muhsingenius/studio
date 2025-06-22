@@ -52,7 +52,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
         return { from: today, to: today };
     }, [filterType]);
 
-    const { control, register, watch, handleSubmit, formState: { errors }, setValue, reset } = useForm<FormValues>({
+    const { control, register, watch, handleSubmit, formState: { errors }, setValue } = useForm<FormValues>({
         defaultValues: {
             periodRange: getDefaultDateRange(),
             paymentDate: new Date(),
@@ -75,13 +75,11 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
         replace(employeeItems);
     }, [employees, replace]);
 
+    // This effect now safely updates only the date range when the filter changes,
+    // without clearing the employee list.
     useEffect(() => {
-        reset({
-            periodRange: getDefaultDateRange(),
-            paymentDate: new Date(),
-            items: [],
-        });
-    }, [filterType, getDefaultDateRange, reset]);
+        setValue('periodRange', getDefaultDateRange());
+    }, [filterType, getDefaultDateRange, setValue]);
 
     const watchedItems = watch("items");
     const employeeMap = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
