@@ -57,9 +57,13 @@ export default function NewPayrollPage() {
                 setSettings({ id: 'payroll', businessId: currentUser.businessId, ...defaultPayrollSettings });
             }
 
-            const employeesQuery = query(collection(db, "employees"), where("businessId", "==", currentUser.businessId), where("isActive", "==", true));
+            const employeesQuery = query(collection(db, "employees"), where("businessId", "==", currentUser.businessId));
             const employeesSnap = await getDocs(employeesQuery);
-            setEmployees(employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
+            const allEmployees = employeesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+            // An employee is considered active if the `isActive` flag is not explicitly false.
+            // This includes employees where the flag is true or undefined (for backward compatibility).
+            const activeEmployees = allEmployees.filter(e => e.isActive !== false);
+            setEmployees(activeEmployees);
 
             const categoriesQuery = query(collection(db, "expenseCategories"), where("businessId", "==", currentUser.businessId));
             const categoriesSnap = await getDocs(categoriesQuery);
