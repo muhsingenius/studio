@@ -52,8 +52,6 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
 
     const { fields, replace } = useFieldArray({ control, name: "items" });
 
-    // This useEffect ensures the form is correctly populated when the employee data loads.
-    // It uses the `replace` method from useFieldArray which is more reliable for dynamic lists.
     useEffect(() => {
         const employeeItems = employees.map(e => ({
             employeeId: e.id,
@@ -70,7 +68,9 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
 
     const watchedItems = watch("items");
 
-    const payrollData = useMemo(() => {
+    // Calculate payroll data on every render to ensure it's always in sync with form state.
+    // Removed useMemo as it was causing issues with re-calculation.
+    const payrollData = (() => {
         const results: (PayrollItem & { unitsWorked: string })[] = [];
         const totals = {
             totalGrossPay: 0,
@@ -80,6 +80,10 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
             totalNetPay: 0,
             totalCostToBusiness: 0,
         };
+
+        if (!watchedItems || watchedItems.length === 0) {
+            return { items: [], totals };
+        }
 
         const employeeMap = new Map(employees.map(e => [e.id, e]));
 
@@ -116,7 +120,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
         });
 
         return { items: results, totals };
-    }, [watchedItems, employees, settings]);
+    })();
 
     const handleFormSubmit = (data: FormValues) => {
         setIsSaving(true);
