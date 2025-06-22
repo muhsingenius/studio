@@ -65,12 +65,14 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
         const results: (PayrollItem & { unitsWorked: string })[] = [];
         let totalGrossPay = 0, totalEmployeeSSNIT = 0, totalEmployerSSNIT = 0, totalPAYE = 0, totalNetPay = 0;
 
-        watchedItems.forEach(item => {
+        watchedItems.forEach((item, index) => {
+            const originalEmployee = employees.find(e => e.id === item.employeeId);
             let grossPay = 0;
             if (item.compensationType === 'Salary') {
                 grossPay = item.grossSalary || 0;
             } else {
-                grossPay = (item.wageRate || 0) * (parseFloat(item.unitsWorked) || 0);
+                const wageRate = originalEmployee?.wageRate || 0;
+                grossPay = wageRate * (parseFloat(item.unitsWorked) || 0);
             }
 
             const { employeeSSNIT, employerSSNIT } = calculateSSNIT(grossPay, settings.ssnitRates);
@@ -99,7 +101,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
                 totalCostToBusiness: totalGrossPay + totalEmployerSSNIT,
             }
         };
-    }, [watchedItems, settings]);
+    }, [watchedItems, settings, employees]);
 
     const handleFormSubmit = (data: FormValues) => {
         setIsSaving(true);
