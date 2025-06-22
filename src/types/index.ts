@@ -1,4 +1,5 @@
 
+
 export type Role = "Admin" | "Accountant" | "Sales" | "Staff";
 
 export interface User {
@@ -30,7 +31,7 @@ export interface ItemCategory {
 }
 
 export interface Item {
-  id: string;
+  id:string;
   type: ItemType;
   name: string;
   sku?: string;
@@ -226,4 +227,83 @@ export interface CashSale {
   recordedBy: string; // UID of the user who recorded the sale
   createdAt: Date; // Firestore server timestamp
   updatedAt?: Date; // Optional: For tracking updates
+}
+
+// Types for Payroll Module
+export type EmployeeCompensationType = 'Salary' | 'Wage';
+export const employeeCompensationTypes: EmployeeCompensationType[] = ['Salary', 'Wage'];
+
+export type WagePeriod = 'Hour' | 'Day';
+export const wagePeriods: WagePeriod[] = ['Hour', 'Day'];
+
+export interface Employee {
+  id: string;
+  businessId: string;
+  name: string;
+  role: string; // e.g., "Developer", "Designer", "Manager"
+  startDate: Date;
+  email?: string;
+  phone?: string;
+
+  compensationType: EmployeeCompensationType;
+  // For Salary
+  grossSalary?: number; // Monthly gross salary
+  // For Wage
+  wageRate?: number;
+  wagePeriod?: WagePeriod;
+
+  ssnitNumber?: string;
+  tinNumber?: string; // Tax Identification Number
+
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface PAYEBracket {
+    id: string;
+    from: number;
+    to: number | null; // null for the highest bracket
+    rate: number; // e.g., 0.175 for 17.5%
+}
+
+export interface SSNITRates {
+    employeeContribution: number; // e.g., 0.055 for 5.5%
+    employerContribution: number; // e.g., 0.13 for 13%
+}
+
+export interface PayrollSettings {
+    id: string; // e.g., "default" for the businessId
+    payeBrackets: PAYEBracket[];
+    ssnitRates: SSNITRates;
+    businessId: string;
+}
+
+export interface PayrollItem {
+    employeeId: string;
+    employeeName: string;
+    grossPay: number;
+    employeeSSNIT: number;
+    taxableIncome: number;
+    paye: number;
+    netPay: number;
+}
+
+export interface PayrollRun {
+    id: string;
+    businessId: string;
+    periodStartDate: Date;
+    periodEndDate: Date;
+    paymentDate: Date;
+    items: PayrollItem[];
+    totalGrossPay: number;
+    totalEmployeeSSNIT: number;
+    totalEmployerSSNIT: number;
+    totalPAYE: number;
+    totalNetPay: number;
+    totalCostToBusiness: number; // Gross Pay + Employer SSNIT
+    status: 'Draft' | 'Completed';
+    expenseId?: string; // Link to the expense record created
+    completedBy: string;
+    completedAt: Date;
 }

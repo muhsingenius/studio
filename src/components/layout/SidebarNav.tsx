@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, Users, FileText, CreditCard, Settings, ShieldCheck, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes, MonitorSmartphone, Wallet, FolderKanban } from "lucide-react";
+import { Home, Users, FileText, CreditCard, Settings, BarChart3, Package, Briefcase, Landmark, ShoppingCart, Shapes, MonitorSmartphone, Wallet, FolderKanban, UsersRound, Calculator, UserCog, BookUser } from "lucide-react";
 import type { Role } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -13,28 +13,26 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   roles?: Role[]; // Roles that can see this item
-  adminOnly?: boolean; // Simplified check if only Admin can see (alternative to roles)
 }
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/customers", label: "Customers", icon: Users },
+  { href: "/customers", label: "Customers", icon: BookUser },
+  { href: "/employees", label: "Employees", icon: UsersRound, roles: ["Admin", "Accountant"] },
   { href: "/items", label: "Items", icon: Package },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/sales", label: "Cash Sales", icon: ShoppingCart },
   { href: "/pos", label: "POS", icon: MonitorSmartphone, roles: ["Admin", "Sales"] },
+  { href: "/payroll", label: "Payroll", icon: Wallet, roles: ["Admin", "Accountant"] },
   { href: "/revenue", label: "Revenue", icon: Landmark },
   { href: "/expenses", label: "Expenses", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["Admin", "Accountant"] },
-  { 
-    href: "/settings/business", 
-    label: "Business Profile", 
-    icon: Briefcase 
-  },
+  { href: "/settings/business", label: "Business Profile", icon: Briefcase },
   { href: "/settings/tax", label: "Tax Setup", icon: Settings, roles: ["Admin", "Accountant"] },
+  { href: "/settings/payroll", label: "Payroll Settings", icon: Calculator, roles: ["Admin", "Accountant"] },
   { href: "/settings/categories", label: "Item Categories", icon: Shapes, roles: ["Admin", "Accountant"] },
   { href: "/settings/expense-categories", label: "Expense Categories", icon: FolderKanban, roles: ["Admin", "Accountant"] },
-  { href: "/admin/users", label: "User Management", icon: ShieldCheck, roles: ["Admin"] },
+  { href: "/admin/users", label: "User Management", icon: UserCog, roles: ["Admin"] },
 ];
 
 export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
@@ -43,7 +41,6 @@ export default function SidebarNav({ collapsed }: { collapsed?: boolean }) {
 
   const userCanView = (item: NavItem) => {
     if (!currentUser) return false; 
-    if (item.adminOnly) return currentUser.role === "Admin";
     if (!item.roles || item.roles.length === 0) return true; 
     return item.roles.includes(currentUser.role);
   };
