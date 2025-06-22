@@ -13,7 +13,9 @@ import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
-const defaultPayrollSettings: Omit<PayrollSettings, "id" | "businessId"> = {
+const PAYROLL_SETTINGS_DOC_ID = "payrollConfiguration";
+
+const defaultPayrollSettings: Omit<PayrollSettings, "id"> = {
   ssnitRates: {
     employeeContribution: 0.055,
     employerContribution: 0.13,
@@ -37,20 +39,15 @@ export default function PayrollSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchSettings = useCallback(async () => {
-    if (!currentUser?.businessId) {
-      setIsLoading(false);
-      return;
-    }
     setIsLoading(true);
     try {
-      const docRef = doc(db, "businesses", currentUser.businessId, "settings", "payroll");
+      const docRef = doc(db, "settings", PAYROLL_SETTINGS_DOC_ID);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setSettings({ id: docSnap.id, businessId: currentUser.businessId, ...docSnap.data() } as PayrollSettings);
+        setSettings({ id: docSnap.id, ...docSnap.data() } as PayrollSettings);
       } else {
         setSettings({
-          id: "payroll",
-          businessId: currentUser.businessId,
+          id: PAYROLL_SETTINGS_DOC_ID,
           ...defaultPayrollSettings,
         });
       }
@@ -60,22 +57,22 @@ export default function PayrollSettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.businessId, toast]);
+  }, [toast]);
 
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
 
-  const handleSave = async (data: Omit<PayrollSettings, "id" | "businessId">) => {
-    if (!currentUser?.businessId) {
-      toast({ title: "Error", description: "Business context is missing.", variant: "destructive" });
-      return;
+  const handleSave = async (data: Omit<PayrollSettings, "id">) => {
+    if (currentUser?.role !== "Admin" && currentUser?.role !== "Accountant") {
+        toast({ title: "Permission Denied", description: "You are not authorized to change payroll settings.", variant: "destructive" });
+        return;
     }
     setIsSaving(true);
     try {
-      const docRef = doc(db, "businesses", currentUser.businessId, "settings", "payroll");
+      const docRef = doc(db, "settings", PAYROLL_SETTINGS_DOC_ID);
       await setDoc(docRef, data);
-      setSettings({ id: 'payroll', businessId: currentUser.businessId, ...data });
+      setSettings({ id: PAYROLL_SETTINGS_DOC_ID, ...data });
       toast({ title: "Settings Saved", description: "Payroll settings have been updated." });
     } catch (error) {
       console.error("Error saving payroll settings:", error);

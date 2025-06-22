@@ -273,10 +273,9 @@ export interface SSNITRates {
 }
 
 export interface PayrollSettings {
-    id: string; // e.g., "default" for the businessId
+    id: string; // e.g., "payrollConfiguration"
     payeBrackets: PAYEBracket[];
     ssnitRates: SSNITRates;
-    businessId: string;
 }
 
 export interface PayrollItem {

@@ -31,7 +31,7 @@ type FormInputs = z.infer<typeof payrollSettingsSchema>;
 
 interface PayrollSettingsFormProps {
   settings: PayrollSettings;
-  onSave: (data: Omit<PayrollSettings, "id" | "businessId">) => Promise<void>;
+  onSave: (data: Omit<PayrollSettings, "id">) => Promise<void>;
   isSaving: boolean;
 }
 

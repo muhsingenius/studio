@@ -16,8 +16,10 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const PAYROLL_SETTINGS_DOC_ID = "payrollConfiguration";
+
 // Default settings if nothing is found in Firestore
-const defaultPayrollSettings: Omit<PayrollSettings, "id" | "businessId"> = {
+const defaultPayrollSettings: Omit<PayrollSettings, "id"> = {
   ssnitRates: {
     employeeContribution: 0.055,
     employerContribution: 0.13,
@@ -50,13 +52,13 @@ export default function NewPayrollPage() {
         }
         setIsLoading(true);
         try {
-            const settingsDocRef = doc(db, "businesses", currentUser.businessId, "settings", "payroll");
+            const settingsDocRef = doc(db, "settings", PAYROLL_SETTINGS_DOC_ID);
             const settingsSnap = await getDoc(settingsDocRef);
             if (settingsSnap.exists()) {
-                setSettings({ id: 'payroll', businessId: currentUser.businessId, ...settingsSnap.data() } as PayrollSettings);
+                setSettings({ id: settingsSnap.id, ...settingsSnap.data() } as PayrollSettings);
             } else {
                 toast({ title: "Using Default Settings", description: "No custom payroll settings found. Please configure them.", variant: "default" });
-                setSettings({ id: 'payroll', businessId: currentUser.businessId, ...defaultPayrollSettings });
+                setSettings({ id: PAYROLL_SETTINGS_DOC_ID, ...defaultPayrollSettings });
             }
 
             const employeesQuery = query(collection(db, "employees"), where("businessId", "==", currentUser.businessId));
