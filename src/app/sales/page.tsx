@@ -52,7 +52,9 @@ export default function CashSalesPage() {
   const [saleToDelete, setSaleToDelete] = useState<CashSale | null>(null);
   const { toast } = useToast();
   const router = useRouter(); 
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
+  
+  const currency = currentBusiness?.currency || 'GHS';
 
   useEffect(() => {
     if (!currentUser || !currentUser.businessId) {
@@ -193,7 +195,7 @@ export default function CashSalesPage() {
                   <TableHead>Sale #</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Amount (GHS)</TableHead>
+                  <TableHead>Amount ({currency})</TableHead>
                   <TableHead>Payment Method</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -209,7 +211,7 @@ export default function CashSalesPage() {
                       <TableCell className="font-medium">{sale.saleNumber}</TableCell>
                       <TableCell>{format(new Date(sale.date), "dd MMM, yyyy")}</TableCell>
                       <TableCell>{sale.customerName || "N/A"}</TableCell>
-                      <TableCell>GHS {sale.totalAmount.toFixed(2)}</TableCell>
+                      <TableCell>{sale.totalAmount.toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="capitalize">{sale.paymentMethod}</Badge>
                       </TableCell>

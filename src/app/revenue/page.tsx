@@ -45,8 +45,10 @@ export default function RevenuePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
   const router = useRouter();
+
+  const currency = currentBusiness?.currency || 'GHS';
 
   useEffect(() => {
     if (!currentUser || !currentUser.businessId) {
@@ -151,7 +153,7 @@ export default function RevenuePage() {
                     <TableHead>Date Received</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Amount (GHS)</TableHead>
+                    <TableHead className="text-right">Amount ({currency})</TableHead>
                     <TableHead>Payment Method</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>

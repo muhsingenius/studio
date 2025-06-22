@@ -25,8 +25,10 @@ export default function PayrollPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
   const router = useRouter();
+
+  const currency = currentBusiness?.currency || 'GHS';
 
   useEffect(() => {
     if (!currentUser?.businessId) {
@@ -108,7 +110,7 @@ export default function PayrollPage() {
                     <TableRow>
                       <TableHead>Pay Period</TableHead>
                       <TableHead>Payment Date</TableHead>
-                      <TableHead>Total Cost (GHS)</TableHead>
+                      <TableHead>Total Cost ({currency})</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>

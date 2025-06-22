@@ -16,7 +16,6 @@ import { db } from "@/lib/firebase";
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   query,
   orderBy,
@@ -46,14 +45,13 @@ const generateSaleNumber = async () => {
 
 
 export default function POSPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
   const { toast } = useToast();
 
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
-  const [business, setBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [cart, setCart] = useState<CashSaleItem[]>([]);
@@ -64,19 +62,22 @@ export default function POSPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastCompletedSale, setLastCompletedSale] = useState<CashSale | null>(null);
 
+  const currency = currentBusiness?.currency || 'GHS';
+
   const fetchData = useCallback(async () => {
-    if (!currentUser?.businessId) {
+    if (!currentUser?.businessId || !currentBusiness) {
       toast({ title: "Error", description: "Business context not available.", variant: "destructive" });
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
+    setTaxSettings(currentBusiness.settings?.tax || defaultTaxSettings);
+    
     try {
-      const [itemsSnap, customersSnap, categoriesSnap, businessSnap] = await Promise.all([
+      const [itemsSnap, customersSnap, categoriesSnap] = await Promise.all([
         getDocs(query(collection(db, "items"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
         getDocs(query(collection(db, "customers"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
         getDocs(query(collection(db, "itemCategories"), where("businessId", "==", currentUser.businessId), orderBy("name", "asc"))),
-        getDoc(doc(db, "businesses", currentUser.businessId)),
       ]);
 
       const itemsData = itemsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Item));
@@ -87,15 +88,6 @@ export default function POSPage() {
       
       const categoriesData = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemCategory));
       setCategories(categoriesData);
-      
-      if (businessSnap.exists()) {
-        const businessData = { id: businessSnap.id, ...businessSnap.data() } as Business;
-        setBusiness(businessData);
-        setTaxSettings(businessData.settings?.tax || defaultTaxSettings);
-      } else {
-        toast({ title: "Warning", description: "Business details not found. Using default settings.", variant: "destructive" });
-        setTaxSettings(defaultTaxSettings);
-      }
 
     } catch (error) {
       console.error("Error fetching POS data:", error);
@@ -103,7 +95,7 @@ export default function POSPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUser?.businessId, toast]);
+  }, [currentUser?.businessId, currentBusiness, toast]);
 
   useEffect(() => {
     fetchData();
@@ -271,6 +263,7 @@ export default function POSPage() {
               onSelectCategory={setSelectedCategoryId}
               onAddItem={handleAddItemToCart}
               disabled={isSaving || !!lastCompletedSale}
+              currency={currency}
             />
           </div>
           <div className="lg:col-span-2 h-full">
@@ -284,6 +277,7 @@ export default function POSPage() {
                 onRemoveItem={handleRemoveItemFromCart}
                 onFinalizeSale={handleFinalizeSale}
                 isSaving={isSaving || !!lastCompletedSale}
+                currency={currency}
              />
           </div>
         </div>
@@ -301,11 +295,11 @@ export default function POSPage() {
           lastSale={lastCompletedSale}
           onPrintReceipt={handlePrintReceipt}
           onNewSale={handleNewSale}
+          currency={currency}
         />
         
-        {/* Hidden component for printing */}
         <div id="thermal-receipt-container" className="hidden">
-           <ThermalReceipt sale={lastCompletedSale} business={business} />
+           <ThermalReceipt sale={lastCompletedSale} business={currentBusiness} />
         </div>
 
       </AuthenticatedLayout>

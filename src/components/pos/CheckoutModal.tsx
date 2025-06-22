@@ -26,6 +26,7 @@ interface CheckoutModalProps {
   lastSale: CashSale | null;
   onPrintReceipt: () => void;
   onNewSale: () => void;
+  currency: string;
 }
 
 export default function CheckoutModal({
@@ -37,15 +38,15 @@ export default function CheckoutModal({
   lastSale,
   onPrintReceipt,
   onNewSale,
+  currency,
 }: CheckoutModalProps) {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [amountTendered, setAmountTendered] = useState<string>("");
   const [paymentReference, setPaymentReference] = useState<string>("");
 
   useEffect(() => {
-    // Reset state only when opening for a new sale, not when it becomes a success screen
     if (isOpen && !lastSale) {
-      setSelectedPaymentMethod('Cash'); // Default to cash for speed
+      setSelectedPaymentMethod('Cash');
       setAmountTendered("");
       setPaymentReference("");
     }
@@ -64,9 +65,6 @@ export default function CheckoutModal({
   
   const saleChangeDue = useMemo(() => {
     if (lastSale?.paymentMethod === 'Cash' && lastSale?.totalAmount > 0) {
-        // We don't have amount tendered on the lastSale object, so we recalculate
-        // This assumes the amount tendered was correctly entered before saving.
-        // For simplicity, we re-use the `changeDue` state from the previous screen.
         return changeDue;
     }
     return 0;
@@ -100,7 +98,7 @@ export default function CheckoutModal({
             {lastSale.paymentMethod === 'Cash' && saleChangeDue > 0 && (
               <div className="space-y-1">
                 <Label>Change Due</Label>
-                <p className="text-3xl font-bold text-primary">GHS {saleChangeDue.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-primary">{currency} {saleChangeDue.toFixed(2)}</p>
               </div>
             )}
           </div>
@@ -125,7 +123,7 @@ export default function CheckoutModal({
           <DialogDescription>
             Total Amount Due:
             <span className="text-xl font-bold text-primary ml-2">
-              GHS {totalAmount.toFixed(2)}
+              {currency} {totalAmount.toFixed(2)}
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -150,7 +148,7 @@ export default function CheckoutModal({
             <div className="space-y-2 p-4 border rounded-md bg-secondary/30">
               <h4 className="font-medium">Cash Payment</h4>
               <div>
-                <Label htmlFor="amountTendered">Amount Tendered (GHS)</Label>
+                <Label htmlFor="amountTendered">Amount Tendered ({currency})</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -168,7 +166,7 @@ export default function CheckoutModal({
               <div>
                 <Label>Change Due</Label>
                 <div className="text-2xl font-bold text-green-600">
-                  GHS {changeDue.toFixed(2)}
+                  {currency} {changeDue.toFixed(2)}
                 </div>
               </div>
             </div>

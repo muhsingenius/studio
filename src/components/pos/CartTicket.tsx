@@ -21,6 +21,7 @@ interface CartTicketProps {
   onRemoveItem: (itemId: string) => void;
   onFinalizeSale: () => void;
   isSaving: boolean;
+  currency: string;
 }
 
 const NO_CUSTOMER_ID = "__NO_CUSTOMER__";
@@ -35,6 +36,7 @@ export default function CartTicket({
   onRemoveItem,
   onFinalizeSale,
   isSaving,
+  currency,
 }: CartTicketProps) {
   
   const subtotal = useMemo(() => {
@@ -50,11 +52,6 @@ export default function CartTicket({
   }, [subtotal, taxSettings]);
 
   const totalAmount = subtotal + taxAmounts.totalTax;
-
-  const selectedCustomerName = useMemo(() => {
-      if (!selectedCustomerId || selectedCustomerId === NO_CUSTOMER_ID) return "Walk-in Customer";
-      return customers.find(c => c.id === selectedCustomerId)?.name || "Walk-in Customer";
-  }, [selectedCustomerId, customers]);
 
   return (
     <Card className="flex flex-col h-full">
@@ -83,7 +80,7 @@ export default function CartTicket({
             <div key={item.id} className="flex items-center gap-3">
               <div className="flex-grow">
                 <p className="font-medium">{item.description}</p>
-                <p className="text-sm text-muted-foreground">GHS {item.unitPrice.toFixed(2)}</p>
+                <p className="text-sm text-muted-foreground">{currency} {item.unitPrice.toFixed(2)}</p>
               </div>
               <div className="flex items-center gap-1 border rounded-md">
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} disabled={isSaving}>
@@ -94,7 +91,7 @@ export default function CartTicket({
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="font-semibold w-20 text-right">GHS {item.total.toFixed(2)}</p>
+              <p className="font-semibold w-20 text-right">{currency} {item.total.toFixed(2)}</p>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onRemoveItem(item.id)} disabled={isSaving}>
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -112,17 +109,17 @@ export default function CartTicket({
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>GHS {subtotal.toFixed(2)}</span>
+              <span>{currency} {subtotal.toFixed(2)}</span>
             </div>
              <div className="flex justify-between">
               <span className="text-muted-foreground">Taxes</span>
-              <span>GHS {taxAmounts.totalTax.toFixed(2)}</span>
+              <span>{currency} {taxAmounts.totalTax.toFixed(2)}</span>
             </div>
           </div>
           <Separator />
           <div className="flex justify-between text-xl font-bold">
             <span>Total</span>
-            <span>GHS {totalAmount.toFixed(2)}</span>
+            <span>{currency} {totalAmount.toFixed(2)}</span>
           </div>
           <Button size="lg" className="w-full h-12 text-lg" onClick={onFinalizeSale} disabled={isSaving || cartItems.length === 0}>
             {isSaving ? <LoadingSpinner /> : 'Checkout'}

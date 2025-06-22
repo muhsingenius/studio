@@ -71,13 +71,14 @@ const getStatusVariant = (status: InvoiceStatus): "default" | "secondary" | "des
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [business, setBusiness] = useState<Business | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const router = useRouter(); 
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
+  
+  const currency = currentBusiness?.currency || 'GHS';
 
   useEffect(() => {
     if (!currentUser || !currentUser.businessId) {
@@ -87,17 +88,6 @@ export default function InvoicesPage() {
     }
 
     setIsLoading(true);
-
-    const fetchBusinessDetails = async () => {
-        const businessDocRef = doc(db, "businesses", currentUser!.businessId!);
-        const businessSnap = await getDoc(businessDocRef);
-        if (businessSnap.exists()) {
-            setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
-        } else {
-            toast({ title: "Warning", description: "Business details not found. PDF download may fail.", variant: "destructive" });
-        }
-    };
-    fetchBusinessDetails();
 
     const invoicesCollectionRef = collection(db, "invoices");
     const q = query(
@@ -117,8 +107,6 @@ export default function InvoicesPage() {
           totalPaidAmount: data.totalPaidAmount || 0, // Ensure totalPaidAmount is present
           createdAt: (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate() : new Date(),
         } as Invoice;
-        // The status from Firestore is kept for now, but derived status will be used for display logic
-        // It will be fully managed by payment recording logic in the future.
         return invoice;
       });
       setInvoices(invoicesData);
@@ -148,8 +136,8 @@ export default function InvoicesPage() {
   };
 
   const handleDownloadPdf = (invoice: Invoice) => {
-    if (business) {
-        generateInvoicePDF(invoice, business);
+    if (currentBusiness) {
+        generateInvoicePDF(invoice, currentBusiness);
     } else {
         toast({ title: "Error", description: "Business data is not available to generate PDF.", variant: "destructive" });
     }
@@ -213,7 +201,7 @@ export default function InvoicesPage() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Date Issued</TableHead>
                   <TableHead>Due Date</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead>Amount ({currency})</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -229,7 +217,7 @@ export default function InvoicesPage() {
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>{invoice.customerName || "N/A"}</TableCell>
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>{format(new Date(invoice.dateIssued), "dd MMM, yyyy")}</TableCell>
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>{format(new Date(invoice.dueDate), "dd MMM, yyyy")}</TableCell>
-                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>GHS {invoice.totalAmount.toFixed(2)}</TableCell>
+                      <TableCell onClick={() => handleViewInvoice(invoice.id)}>{invoice.totalAmount.toFixed(2)}</TableCell>
                       <TableCell onClick={() => handleViewInvoice(invoice.id)}>
                         <Badge variant={getStatusVariant(invoice.derivedStatus)} className={cn(
                             invoice.derivedStatus === "Paid" ? "bg-green-500/20 text-green-700 border-green-500/30" : "",
@@ -262,7 +250,7 @@ export default function InvoicesPage() {
                           size="icon" 
                           title="Download PDF"
                           onClick={(e) => { e.stopPropagation(); handleDownloadPdf(invoice); }}
-                          disabled={!business}
+                          disabled={!currentBusiness}
                         >
                             <FileDown className="h-4 w-4 text-gray-600" />
                         </Button>

@@ -1,7 +1,7 @@
 
 "use client";
 
-import * as React from "react"; // Added React import
+import * as React from "react";
 import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -39,6 +39,7 @@ interface PaymentFormProps {
   invoiceTotalAmount: number;
   currentPaidAmount: number;
   isSaving?: boolean;
+  currency: string;
 }
 
 export default function PaymentForm({
@@ -48,16 +49,17 @@ export default function PaymentForm({
   invoiceId,
   invoiceTotalAmount,
   currentPaidAmount,
-  isSaving
+  isSaving,
+  currency,
 }: PaymentFormProps) {
   const outstandingAmount = invoiceTotalAmount - currentPaidAmount;
 
   const { control, register, handleSubmit, formState: { errors }, reset } = useForm<PaymentFormInputs>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
-      amountPaid: Math.max(0, outstandingAmount), // Default to outstanding or 0 if overpaid
+      amountPaid: Math.max(0, outstandingAmount),
       paymentDate: new Date(),
-      paymentMethod: undefined, // Let user select
+      paymentMethod: undefined,
       paymentReference: "",
       notes: "",
     },
@@ -78,8 +80,6 @@ export default function PaymentForm({
 
   const processSubmit: SubmitHandler<PaymentFormInputs> = async (data) => {
     await onSave(data);
-    // Removed automatic close on save to allow caller (ViewInvoicePage) to control it
-    // This prevents closing if there's an error during save that keeps isSaving true
   };
 
   return (
@@ -90,12 +90,12 @@ export default function PaymentForm({
           <DialogDescription>
             Enter the details for the payment received. Invoice ID: {invoiceId}
             <br />
-            Total Due: GHS {invoiceTotalAmount.toFixed(2)} | Already Paid: GHS {currentPaidAmount.toFixed(2)} | <span className="font-semibold">Outstanding: GHS {outstandingAmount.toFixed(2)}</span>
+            Total Due: {currency} {invoiceTotalAmount.toFixed(2)} | Already Paid: {currency} {currentPaidAmount.toFixed(2)} | <span className="font-semibold">Outstanding: {currency} {outstandingAmount.toFixed(2)}</span>
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(processSubmit)} className="space-y-5 py-4">
           <div>
-            <Label htmlFor="amountPaid">Amount Paid (GHS) *</Label>
+            <Label htmlFor="amountPaid">Amount Paid ({currency}) *</Label>
             <div className="relative">
               <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input

@@ -38,17 +38,17 @@ export default function ViewInvoicePage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [business, setBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
 
   const invoiceId = typeof params.id === 'string' ? params.id : null;
+  const currency = currentBusiness?.currency || 'GHS';
 
   const fetchInvoiceAndPayments = useCallback(async () => {
     if (!invoiceId || !currentUser?.businessId) {
@@ -61,15 +61,6 @@ export default function ViewInvoicePage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Fetch Business Details first
-      const businessDocRef = doc(db, "businesses", currentUser.businessId);
-      const businessSnap = await getDoc(businessDocRef);
-      if (businessSnap.exists()) {
-        setBusiness({ id: businessSnap.id, ...businessSnap.data() } as Business);
-      } else {
-        toast({ title: "Warning", description: "Business details not found. PDF download may not work correctly.", variant: "destructive" });
-      }
-
       const invoiceDocRef = doc(db, "invoices", invoiceId);
       const invoiceSnap = await getDoc(invoiceDocRef);
 
@@ -133,7 +124,6 @@ export default function ViewInvoicePage() {
       await runTransaction(db, async (transaction) => {
         const invoiceDocRef = doc(db, "invoices", invoiceId);
         
-        // --- PHASE 1: ALL READS ---
         const invoiceSnapshot = await transaction.get(invoiceDocRef);
         if (!invoiceSnapshot.exists()) {
           throw new Error("Invoice does not exist.");
@@ -141,24 +131,22 @@ export default function ViewInvoicePage() {
         const currentInvoiceData = invoiceSnapshot.data() as Invoice;
         const originalInvoiceStatus = currentInvoiceData.status;
 
-        // Calculate what the new total paid amount and status would be
         const newTotalPaidAmountProvisional = (currentInvoiceData.totalPaidAmount || 0) + paymentFormData.amountPaid;
         let newStatusProvisional: InvoiceStatus = currentInvoiceData.status;
         const outstandingProvisional = currentInvoiceData.totalAmount - newTotalPaidAmountProvisional;
 
-        if (outstandingProvisional <= 0.001) { // Using epsilon for float comparison
+        if (outstandingProvisional <= 0.001) {
           newStatusProvisional = "Paid";
         } else if (newTotalPaidAmountProvisional > 0 && outstandingProvisional > 0.001) {
           newStatusProvisional = "Partially Paid";
         } else if (isPast(new Date(currentInvoiceData.dueDate)) && outstandingProvisional > 0.001) {
           newStatusProvisional = "Overdue";
-        } else if (outstandingProvisional > 0.001) { // Still some amount due, not overdue
+        } else if (outstandingProvisional > 0.001) {
           newStatusProvisional = "Pending";
         }
-
-        // Prepare for inventory reads if status will change to "Paid"
+        
         const itemInventoryReads: Array<{
-          productItemRef: DocumentReference<DocumentData>; // Use DocumentData for generic ref
+          productItemRef: DocumentReference<DocumentData>;
           invoiceItem: InvoiceItem;
         }> = [];
 
@@ -171,13 +159,10 @@ export default function ViewInvoicePage() {
           }
         }
         
-        // Perform all necessary item reads
         const itemSnapshots = await Promise.all(
           itemInventoryReads.map(read => transaction.get(read.productItemRef))
         );
 
-        // --- PHASE 2: ALL WRITES ---
-        // 1. Create new payment document
         const newPaymentDocRef = doc(collection(db, "payments"));
         transaction.set(newPaymentDocRef, {
           ...paymentFormData,
@@ -187,13 +172,11 @@ export default function ViewInvoicePage() {
           createdAt: serverTimestamp(),
         });
 
-        // 2. Update invoice document (using the provisionally calculated status and amount)
         transaction.update(invoiceDocRef, {
           totalPaidAmount: newTotalPaidAmountProvisional,
           status: newStatusProvisional,
         });
         
-        // 3. Update inventory for each item if invoice is now "Paid"
         if (originalInvoiceStatus !== "Paid" && newStatusProvisional === "Paid") {
           for (let i = 0; i < itemInventoryReads.length; i++) {
             const { productItemRef, invoiceItem } = itemInventoryReads[i];
@@ -218,11 +201,11 @@ export default function ViewInvoicePage() {
             }
           }
         }
-      }); // End of transaction
+      });
 
-      toast({ title: "Payment Recorded", description: `Payment of GHS ${paymentFormData.amountPaid.toFixed(2)} recorded. Invoice and inventory updated if applicable.` });
+      toast({ title: "Payment Recorded", description: `Payment of ${currency} ${paymentFormData.amountPaid.toFixed(2)} recorded. Invoice and inventory updated if applicable.` });
       setIsPaymentDialogOpen(false);
-      await fetchInvoiceAndPayments(); // Re-fetch to update UI
+      await fetchInvoiceAndPayments();
 
     } catch (error) {
       console.error("Error recording payment: ", error);
@@ -233,8 +216,8 @@ export default function ViewInvoicePage() {
   };
 
   const handleDownloadPdf = () => {
-    if (invoice && business) {
-        generateInvoicePDF(invoice, business);
+    if (invoice && currentBusiness) {
+        generateInvoicePDF(invoice, currentBusiness);
     } else {
         toast({ title: "Error", description: "Invoice or business data is not available.", variant: "destructive" });
     }
@@ -274,7 +257,7 @@ export default function ViewInvoicePage() {
                   Edit Invoice
                 </Button>
               )}
-              {invoice && business && (
+              {invoice && currentBusiness && (
                 <Button onClick={handleDownloadPdf} variant="outline">
                     <FileDown className="mr-2 h-4 w-4" />
                     Download PDF
@@ -290,7 +273,7 @@ export default function ViewInvoicePage() {
           </div>
         )}
         {invoice && !error && (
-          <InvoiceDetailsDisplay invoice={invoice} payments={payments} />
+          <InvoiceDetailsDisplay invoice={invoice} payments={payments} currency={currency} />
         )}
         {!invoice && !isLoading && !error && (
              <div className="text-center py-10 text-muted-foreground">
@@ -307,6 +290,7 @@ export default function ViewInvoicePage() {
             invoiceTotalAmount={invoice.totalAmount}
             currentPaidAmount={invoice.totalPaidAmount}
             isSaving={isSavingPayment}
+            currency={currency}
           />
         )}
 

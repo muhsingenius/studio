@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import type { Employee, PayrollSettings, PayrollItem } from "@/types";
 import { Button } from "../ui/button";
@@ -18,6 +18,7 @@ import { calculateSSNIT, calculatePAYE } from "@/lib/payroll-calculator";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { useToast } from "@/hooks/use-toast";
 import type { DateRange } from "react-day-picker";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PayrollRunFormProps {
     employees: Employee[];
@@ -43,6 +44,8 @@ type FormValues = {
 export default function PayrollRunForm({ employees, settings, onFinalize, filterType }: PayrollRunFormProps) {
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
+    const { currentBusiness } = useAuth();
+    const currency = currentBusiness?.currency || 'GHS';
 
     const getDefaultDateRange = useCallback(() => {
         const today = new Date();
@@ -79,10 +82,8 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
     }, [filterType, getDefaultDateRange, setValue]);
 
     const watchedItems = watch("items");
-    const employeeMap = useMemo(() => new Map(employees.map(e => [e.id, e])), [employees]);
+    const employeeMap = new Map(employees.map(e => [e.id, e]));
 
-    // Calculate payroll data on every render to ensure real-time updates.
-    // useMemo was causing issues with stale data when inputs changed.
     const payrollData = (() => {
         const results: (PayrollItem & { unitsWorked: string })[] = [];
         const totals = {
@@ -164,7 +165,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
             periodStartDate,
             periodEndDate,
             paymentDate: data.paymentDate,
-            items: payrollData.items.map(({ unitsWorked, ...rest }) => rest), // Exclude transient form data
+            items: payrollData.items.map(({ unitsWorked, ...rest }) => rest),
             ...payrollData.totals,
         };
         onFinalize(finalData).finally(() => setIsSaving(false));
@@ -271,7 +272,7 @@ export default function PayrollRunForm({ employees, settings, onFinalize, filter
                     <div className="w-full md:w-1/3 space-y-1">
                         <div className="flex justify-between"><span className="text-muted-foreground">Total Gross Pay:</span> <span>{payrollData.totals.totalGrossPay.toFixed(2)}</span></div>
                         <div className="flex justify-between"><span className="text-muted-foreground">Total Net Pay:</span> <span>{payrollData.totals.totalNetPay.toFixed(2)}</span></div>
-                        <div className="flex justify-between font-bold"><span className="">Total Cost to Business:</span> <span>GHS {payrollData.totals.totalCostToBusiness.toFixed(2)}</span></div>
+                        <div className="flex justify-between font-bold"><span className="">Total Cost to Business:</span> <span>{currency} {payrollData.totals.totalCostToBusiness.toFixed(2)}</span></div>
                     </div>
                     <Button type="submit" disabled={isSaving}>
                         {isSaving && <LoadingSpinner className="mr-2"/>}

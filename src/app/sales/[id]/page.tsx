@@ -20,13 +20,14 @@ export default function ViewCashSalePage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
 
   const [sale, setSale] = useState<CashSale | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const saleId = typeof params.id === 'string' ? params.id : null;
+  const currency = currentBusiness?.currency || 'GHS';
 
   const fetchSale = useCallback(async () => {
     if (!saleId || !currentUser?.businessId) {
@@ -110,7 +111,7 @@ export default function ViewCashSalePage() {
           </div>
         )}
         {sale && !error && (
-          <CashSaleDetailsDisplay sale={sale} />
+          <CashSaleDetailsDisplay sale={sale} currency={currency} />
         )}
         {!sale && !isLoading && !error && (
              <div className="text-center py-10 text-muted-foreground">

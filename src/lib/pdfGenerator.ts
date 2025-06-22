@@ -6,7 +6,6 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import type { Invoice, Business } from '@/types';
 
-// Augment jsPDF interface for the autoTable plugin
 declare module 'jspdf' {
   interface jsPDF {
     autoTable: (options: any) => jsPDF;
@@ -16,15 +15,14 @@ declare module 'jspdf' {
 export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
   const doc = new jsPDF();
   const pageHeight = doc.internal.pageSize.getHeight();
-  let y = 20; // vertical position
+  let y = 20; 
+  const currency = business.currency || 'GHS';
 
-  // 1. Business Logo and Name
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.text(business.name || 'Your Business Name', 15, y);
   y += 10;
   
-  // 2. Invoice Title
   doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
   doc.text('INVOICE', 200, y - 10, { align: 'right' });
@@ -34,17 +32,14 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
   doc.line(15, y, 200, y);
   y += 10;
 
-  // 3. Invoice & Customer Details
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
 
-  // Left column: Bill To
   doc.setFont('helvetica', 'bold');
   doc.text('BILL TO:', 15, y);
   doc.setFont('helvetica', 'normal');
   doc.text(invoice.customerName || 'N/A', 15, y + 5);
   
-  // Right column: Invoice Info
   const rightColX = 140;
   doc.setFont('helvetica', 'bold');
   doc.text('INVOICE #:', rightColX, y);
@@ -63,8 +58,7 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
 
   y += 25;
 
-  // 4. Invoice Items Table
-  const tableHead = [['Description', 'Quantity', 'Unit Price (GHS)', 'Total (GHS)']];
+  const tableHead = [['Description', 'Quantity', `Unit Price (${currency})`, `Total (${currency})`]];
   const tableBody = invoice.items.map(item => [
     item.description,
     item.quantity.toString(),
@@ -77,7 +71,7 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
     body: tableBody,
     startY: y,
     theme: 'striped',
-    headStyles: { fillColor: [38, 109, 118] }, // Using a teal color from the theme
+    headStyles: { fillColor: [38, 109, 118] },
     styles: { fontSize: 10 },
   });
 
@@ -87,7 +81,6 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
       y = 15;
   }
 
-  // 5. Totals Section
   const totalSectionX = 130;
   doc.setFontSize(10);
   
@@ -98,11 +91,11 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
     y += 6;
   };
   
-  addTotalLine('Subtotal:', `GHS ${invoice.subtotal.toFixed(2)}`);
+  addTotalLine('Subtotal:', `${currency} ${invoice.subtotal.toFixed(2)}`);
   if (invoice.taxDetails) {
-    addTotalLine(`VAT (${(invoice.taxDetails.vatRate * 100).toFixed(1)}%):`, `GHS ${invoice.taxDetails.vatAmount.toFixed(2)}`);
-    addTotalLine(`NHIL (${(invoice.taxDetails.nhilRate * 100).toFixed(1)}%):`, `GHS ${invoice.taxDetails.nhilAmount.toFixed(2)}`);
-    addTotalLine(`GETFund (${(invoice.taxDetails.getFundRate * 100).toFixed(1)}%):`, `GHS ${invoice.taxDetails.getFundAmount.toFixed(2)}`);
+    addTotalLine(`VAT (${(invoice.taxDetails.vatRate * 100).toFixed(1)}%):`, `${currency} ${invoice.taxDetails.vatAmount.toFixed(2)}`);
+    addTotalLine(`NHIL (${(invoice.taxDetails.nhilRate * 100).toFixed(1)}%):`, `${currency} ${invoice.taxDetails.nhilAmount.toFixed(2)}`);
+    addTotalLine(`GETFund (${(invoice.taxDetails.getFundRate * 100).toFixed(1)}%):`, `${currency} ${invoice.taxDetails.getFundAmount.toFixed(2)}`);
   }
   
   y += 2;
@@ -111,9 +104,9 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
   y += 5;
 
   doc.setFontSize(12);
-  addTotalLine('TOTAL AMOUNT:', `GHS ${invoice.totalAmount.toFixed(2)}`, true);
+  addTotalLine('TOTAL AMOUNT:', `${currency} ${invoice.totalAmount.toFixed(2)}`, true);
   doc.setFontSize(10);
-  addTotalLine('Amount Paid:', `GHS ${invoice.totalPaidAmount.toFixed(2)}`);
+  addTotalLine('Amount Paid:', `${currency} ${invoice.totalPaidAmount.toFixed(2)}`);
   
   y += 2;
   doc.setLineWidth(0.2);
@@ -121,11 +114,10 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
   y += 5;
 
   doc.setFontSize(12);
-  addTotalLine('Amount Due:', `GHS ${(invoice.totalAmount - invoice.totalPaidAmount).toFixed(2)}`, true);
+  addTotalLine('Amount Due:', `${currency} ${(invoice.totalAmount - invoice.totalPaidAmount).toFixed(2)}`, true);
 
   y += 10;
   
-  // 6. Notes
   if (invoice.notes) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
@@ -136,7 +128,6 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
     doc.text(notesText, 15, y);
   }
   
-  // 7. Footer
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -146,6 +137,5 @@ export const generateInvoicePDF = (invoice: Invoice, business: Business) => {
     doc.text(`Thank you for your business! - ${business.name || 'Your Company'}`, 15, pageHeight - 10);
   }
 
-  // Save the PDF
   doc.save(`Invoice-${invoice.invoiceNumber}.pdf`);
 };

@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils";
 
 interface CashSaleDetailsDisplayProps {
   sale: CashSale;
+  currency: string;
 }
 
-export default function CashSaleDetailsDisplay({ sale }: CashSaleDetailsDisplayProps) {
+export default function CashSaleDetailsDisplay({ sale, currency }: CashSaleDetailsDisplayProps) {
   const {
     saleNumber,
     customerName,
@@ -59,8 +60,8 @@ export default function CashSaleDetailsDisplay({ sale }: CashSaleDetailsDisplayP
                 <TableRow>
                   <TableHead className="w-[60%]">Description</TableHead>
                   <TableHead className="text-center">Quantity</TableHead>
-                  <TableHead className="text-right">Unit Price (GHS)</TableHead>
-                  <TableHead className="text-right">Total (GHS)</TableHead>
+                  <TableHead className="text-right">Unit Price ({currency})</TableHead>
+                  <TableHead className="text-right">Total ({currency})</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,32 +101,32 @@ export default function CashSaleDetailsDisplay({ sale }: CashSaleDetailsDisplayP
             <h3 className="text-lg font-semibold mb-3 font-headline text-right">Cash Sale Summary</h3>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal:</span>
-              <span className="font-medium">GHS {subtotal.toFixed(2)}</span>
+              <span className="font-medium">{currency} {subtotal.toFixed(2)}</span>
             </div>
             {taxDetails && (
               <>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">VAT ({ (taxDetails.vatRate * 100).toFixed(1) }%):</span>
-                  <span className="font-medium">GHS {taxDetails.vatAmount.toFixed(2)}</span>
+                  <span className="font-medium">{currency} {taxDetails.vatAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">NHIL ({ (taxDetails.nhilRate * 100).toFixed(1) }%):</span>
-                  <span className="font-medium">GHS {taxDetails.nhilAmount.toFixed(2)}</span>
+                  <span className="font-medium">{currency} {taxDetails.nhilAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">GETFund ({ (taxDetails.getFundRate * 100).toFixed(1) }%):</span>
-                  <span className="font-medium">GHS {taxDetails.getFundAmount.toFixed(2)}</span>
+                  <span className="font-medium">{currency} {taxDetails.getFundAmount.toFixed(2)}</span>
                 </div>
                  <div className="flex justify-between font-semibold">
                   <span className="text-muted-foreground">Total Tax:</span>
-                  <span>GHS {taxDetails.totalTax.toFixed(2)}</span>
+                  <span>{currency} {taxDetails.totalTax.toFixed(2)}</span>
                 </div>
               </>
             )}
             <Separator className="my-1" />
             <div className="flex justify-between text-xl font-bold text-primary pt-1">
               <span>Total Amount Paid:</span>
-              <span>GHS {totalAmount.toFixed(2)}</span>
+              <span>{currency} {totalAmount.toFixed(2)}</span>
             </div>
           </div>
         </div>

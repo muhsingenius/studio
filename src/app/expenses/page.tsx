@@ -32,9 +32,11 @@ export default function ExpensesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+
+  const currency = currentBusiness?.currency || 'GHS';
 
   useEffect(() => {
     if (!currentUser?.businessId) {
@@ -82,7 +84,7 @@ export default function ExpensesPage() {
       unsubscribeExpenses();
       unsubscribeCategories();
     };
-  }, [currentUser?.businessId, toast]);
+  }, [currentUser?.businessId, toast, isLoading]);
 
   const handleAddExpense = () => {
     setSelectedExpense(null);
@@ -108,13 +110,12 @@ export default function ExpensesPage() {
   };
 
   const handleSaveExpense = async (data: Omit<Expense, "id" | "businessId" | "recordedBy" | "createdAt" | "updatedAt">) => {
-    if (!currentUser?.businessId) {
+    if (!currentUser?.businessId || !currentUser.id) {
         toast({ title: "Error", description: "Business context is missing.", variant: "destructive" });
         return;
     }
     setIsSaving(true);
     
-    // Sanitize and round the amount to two decimal places to prevent floating point issues.
     const sanitizedAmount = parseFloat(data.amount.toFixed(2));
     if (isNaN(sanitizedAmount)) {
         toast({ title: "Invalid Amount", description: "The amount entered is not a valid number.", variant: "destructive" });
@@ -206,7 +207,7 @@ export default function ExpensesPage() {
                             <TableHead>Vendor</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead>Description</TableHead>
-                            <TableHead className="text-right">Amount (GHS)</TableHead>
+                            <TableHead className="text-right">Amount ({currency})</TableHead>
                             <TableHead>Payment Method</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>

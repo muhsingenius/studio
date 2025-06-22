@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -15,20 +16,19 @@ interface ItemCatalogProps {
   onSelectCategory: (categoryId: string | null) => void;
   onAddItem: (item: Item) => void;
   disabled?: boolean;
+  currency: string;
 }
 
-export default function ItemCatalog({ items, categories, selectedCategoryId, onSelectCategory, onAddItem, disabled }: ItemCatalogProps) {
+export default function ItemCatalog({ items, categories, selectedCategoryId, onSelectCategory, onAddItem, disabled, currency }: ItemCatalogProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredItems = useMemo(() => {
     let categoryFiltered = items;
 
-    // 1. Filter by category
     if (selectedCategoryId) {
       categoryFiltered = items.filter(item => item.categoryId === selectedCategoryId);
     }
 
-    // 2. Filter by search term
     if (!searchTerm) {
       return categoryFiltered;
     }
@@ -85,7 +85,7 @@ export default function ItemCatalog({ items, categories, selectedCategoryId, onS
                     className="flex flex-col items-center justify-center p-2 text-center border rounded-lg aspect-square shadow-sm hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                     <span className="text-sm font-medium leading-tight">{item.name}</span>
-                    <span className="text-xs text-muted-foreground mt-1">GHS {item.sellingPrice.toFixed(2)}</span>
+                    <span className="text-xs text-muted-foreground mt-1">{currency} {item.sellingPrice.toFixed(2)}</span>
                     {!item.isActive && <span className="text-xs text-destructive mt-1">(Inactive)</span>}
                 </button>
             ))}

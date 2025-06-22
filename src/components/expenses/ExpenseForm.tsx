@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, DollarSign } from "lucide-react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { ScrollArea } from "../ui/scroll-area";
+import { useAuth } from "@/contexts/AuthContext";
 
 const expenseSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
@@ -41,6 +42,9 @@ interface ExpenseFormProps {
 }
 
 export default function ExpenseForm({ expense, categories, onSave, setOpen, isSaving }: ExpenseFormProps) {
+  const { currentBusiness } = useAuth();
+  const currency = currentBusiness?.currency || 'GHS';
+  
   const { control, register, handleSubmit, formState: { errors } } = useForm<ExpenseFormInputs>({
     resolver: zodResolver(expenseSchema),
     defaultValues: expense ? {
@@ -133,7 +137,7 @@ export default function ExpenseForm({ expense, categories, onSave, setOpen, isSa
             
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div>
-                  <Label htmlFor="amount">Amount (GHS) *</Label>
+                  <Label htmlFor="amount">Amount ({currency}) *</Label>
                   <div className="relative">
                       <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input

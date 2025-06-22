@@ -37,10 +37,12 @@ interface TransactionItem {
 }
 
 export default function DashboardPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
   const [summaryData, setSummaryData] = useState<DashboardSummary | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<TransactionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const currency = currentBusiness?.currency || "GHS";
 
   const fetchDashboardData = useCallback(async () => {
     if (!currentUser?.businessId) {
@@ -221,7 +223,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-5 w-5 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">GHS {summaryData.totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="text-3xl font-bold">{currency} {summaryData.totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <p className="text-xs text-muted-foreground">All income sources combined</p>
             </CardContent>
           </Card>
@@ -232,7 +234,7 @@ export default function DashboardPage() {
               <TrendingDown className="h-5 w-5 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">GHS {summaryData.totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="text-3xl font-bold">{currency} {summaryData.totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <p className="text-xs text-muted-foreground">Total operational spending</p>
             </CardContent>
           </Card>
@@ -243,7 +245,7 @@ export default function DashboardPage() {
               <DollarSign className="h-5 w-5 text-primary-foreground/70" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">GHS {summaryData.netProfit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="text-3xl font-bold">{currency} {summaryData.netProfit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <p className="text-xs text-primary-foreground/70">Total Revenue - Total Expenses</p>
             </CardContent>
           </Card>
@@ -254,7 +256,7 @@ export default function DashboardPage() {
               <Receipt className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">GHS {summaryData.totalInvoiceRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="text-2xl font-bold">{currency} {summaryData.totalInvoiceRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <p className="text-xs text-muted-foreground">Payments received for invoices</p>
             </CardContent>
           </Card>
@@ -265,7 +267,7 @@ export default function DashboardPage() {
               <ShoppingCart className="h-5 w-5 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">GHS {summaryData.totalCashSaleRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="text-2xl font-bold">{currency} {summaryData.totalCashSaleRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <p className="text-xs text-muted-foreground">POS and direct cash sales</p>
             </CardContent>
           </Card>
@@ -317,7 +319,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                       <div className={cn("font-semibold", tx.amount >= 0 ? "text-green-600" : "text-red-600")}>
-                        GHS {tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        {currency} {tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                       </div>
                     </div>
                   ))}

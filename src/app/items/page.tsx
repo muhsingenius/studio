@@ -54,7 +54,9 @@ export default function ItemsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
+  
+  const currency = currentBusiness?.currency || 'GHS';
 
   useEffect(() => {
     if (!currentUser?.businessId) {
@@ -112,7 +114,7 @@ export default function ItemsPage() {
         unsubscribeItems();
         unsubscribeCategories();
     };
-  }, [currentUser, toast]);
+  }, [currentUser, toast, isLoading]);
 
   const handleAddItem = () => {
     setSelectedItem(null);
@@ -224,7 +226,7 @@ export default function ItemsPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>SKU</TableHead>
-                    <TableHead className="text-right">Selling Price (GHS)</TableHead>
+                    <TableHead className="text-right">Selling Price ({currency})</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { paymentMethods } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NO_CUSTOMER_SELECTED_VALUE = "__NO_CUSTOMER_SELECTED__";
 
@@ -68,6 +69,8 @@ export default function CashSaleForm({
 }: CashSaleFormProps) {
   const [saleNumber, setSaleNumber] = useState(initialSaleNumber || "");
   const { toast } = useToast();
+  const { currentBusiness } = useAuth();
+  const currency = currentBusiness?.currency || 'GHS';
 
   const defaultValues = useMemo(() => {
     return {
@@ -109,7 +112,6 @@ export default function CashSaleForm({
         setValue("customerName", customer.name); // Autofill customer name if selected
       }
     } else {
-        // If customerId is cleared (becomes falsy like "" or undefined), clear customerName if it was auto-filled
         const currentCustomerName = getValues("customerName");
         const customerExistsWithName = customers.some(c => c.name === currentCustomerName);
         if (customerExistsWithName && !customers.find(c => c.id === watchedCustomerId)) {
@@ -221,7 +223,6 @@ export default function CashSaleForm({
            {isReadOnly && <p className="text-sm text-destructive mt-2">Editing items and amounts for completed sales is restricted. Only notes and payment reference can be updated.</p>}
         </CardHeader>
         <CardContent className="space-y-8">
-          {/* Customer and Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="customerId">Customer (Optional)</Label>
@@ -231,7 +232,7 @@ export default function CashSaleForm({
                 render={({ field }) => (
                   <Select
                     onValueChange={(value) => field.onChange(value === NO_CUSTOMER_SELECTED_VALUE ? "" : value)}
-                    value={field.value || ""} // Ensures placeholder shows if field.value is ""
+                    value={field.value || ""}
                     disabled={isReadOnly}
                   >
                     <SelectTrigger id="customerId" aria-invalid={errors.customerId ? "true" : "false"}>
@@ -289,7 +290,6 @@ export default function CashSaleForm({
             </div>
           </div>
 
-          {/* Line Items */}
           <div className="space-y-2">
             <Label className="text-lg font-medium">Items Sold</Label>
             {fields.map((field, index) => (
@@ -314,7 +314,6 @@ export default function CashSaleForm({
             )}
           </div>
 
-          {/* Payment Details */}
           <div className="space-y-4 pt-4 border-t">
             <h3 className="text-lg font-medium font-headline">Payment Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -350,7 +349,6 @@ export default function CashSaleForm({
             </div>
           </div>
 
-          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes" className="text-lg font-medium">Notes (Optional)</Label>
             <Textarea
@@ -362,30 +360,29 @@ export default function CashSaleForm({
             />
           </div>
 
-          {/* Totals Summary */}
           <div className="space-y-4 rounded-lg border bg-card p-6 shadow">
             <h3 className="text-xl font-semibold font-headline text-center md:text-left">Sale Summary</h3>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-medium">GHS {subtotal.toFixed(2)}</span>
+                <span className="font-medium">{currency} {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">VAT ({ (taxSettings.vat * 100).toFixed(1) }%):</span>
-                <span className="font-medium">GHS {taxAmounts.vatAmount.toFixed(2)}</span>
+                <span className="font-medium">{currency} {taxAmounts.vatAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">NHIL ({ (taxSettings.nhilRate * 100).toFixed(1) }%):</span>
-                <span className="font-medium">GHS {taxAmounts.nhilAmount.toFixed(2)}</span>
+                <span className="font-medium">{currency} {taxAmounts.nhilAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">GETFund ({ (taxSettings.getFundRate * 100).toFixed(1) }%):</span>
-                <span className="font-medium">GHS {taxAmounts.getFundAmount.toFixed(2)}</span>
+                <span className="font-medium">{currency} {taxAmounts.getFundAmount.toFixed(2)}</span>
               </div>
               <hr className="my-2 border-border" />
               <div className="flex justify-between text-xl">
                 <span className="font-semibold text-primary">Total Amount:</span>
-                <span className="font-bold text-primary">GHS {totalAmount.toFixed(2)}</span>
+                <span className="font-bold text-primary">{currency} {totalAmount.toFixed(2)}</span>
               </div>
             </div>
           </div>

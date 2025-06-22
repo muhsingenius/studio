@@ -72,7 +72,8 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [saveAndDownload, setSaveAndDownload] = useState(false);
   const { toast } = useToast();
-  const { currentUser } = useAuth();
+  const { currentUser, currentBusiness } = useAuth();
+  const currency = currentBusiness?.currency || 'GHS';
 
   const defaultValues = useMemo(() => {
     const now = new Date();
@@ -186,7 +187,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
     setAiLoading(true);
     const formData = getValues();
     const purchasedProductsString = formData.items
-      .map(item => `${item.description} (Qty: ${item.quantity}, Unit Price: GHS ${item.unitPrice.toFixed(2)})`)
+      .map(item => `${item.description} (Qty: ${item.quantity}, Unit Price: ${currency} ${item.unitPrice.toFixed(2)})`)
       .join("\n");
 
     const aiInput: GenerateInvoiceTextInput = {
@@ -241,7 +242,7 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
       notes: data.notes,
     };
     onSave(finalInvoiceDataToSend, data, saveAndDownload);
-    setSaveAndDownload(false); // Reset state after submission attempt
+    setSaveAndDownload(false);
   };
 
   const handleSaveAndDownload = () => {
@@ -374,7 +375,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             </div>
           </div>
 
-          {/* Line Items */}
           <div className="space-y-2">
             <Label className="text-lg font-medium">Items</Label>
             {fields.map((field, index) => (
@@ -400,7 +400,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             </Button>
           </div>
 
-          {/* AI Autocompletion Section */}
           <Card className="bg-secondary/20 border-dashed">
             <CardHeader>
               <CardTitle className="text-xl font-headline flex items-center">
@@ -445,7 +444,6 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             </CardContent>
           </Card>
           
-          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes" className="text-lg font-medium">Notes / Payment Instructions</Label>
             <Textarea
@@ -457,30 +455,29 @@ export default function InvoiceForm({ invoice, customers, taxSettings, available
             />
           </div>
 
-          {/* Totals Summary */}
           <div className="space-y-4 rounded-lg border bg-card p-6 shadow">
             <h3 className="text-xl font-semibold font-headline text-center md:text-left">Invoice Summary</h3>
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-medium">GHS {subtotal.toFixed(2)}</span>
+                <span className="font-medium">{currency} {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">VAT ({ (taxSettings.vat * 100).toFixed(1) }%):</span>
-                <span className="font-medium">GHS {taxAmounts.vatAmount.toFixed(2)}</span>
+                <span className="font-medium">{currency} {taxAmounts.vatAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">NHIL ({ (taxSettings.nhil * 100).toFixed(1) }%):</span>
-                <span className="font-medium">GHS {taxAmounts.nhilAmount.toFixed(2)}</span>
+                <span className="text-muted-foreground">NHIL ({ (taxSettings.nhilRate * 100).toFixed(1) }%):</span>
+                <span className="font-medium">{currency} {taxAmounts.nhilAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">GETFund ({ (taxSettings.getFundRate * 100).toFixed(1) }%):</span>
-                <span className="font-medium">GHS {taxAmounts.getFundAmount.toFixed(2)}</span>
+                <span className="font-medium">{currency} {taxAmounts.getFundAmount.toFixed(2)}</span>
               </div>
               <hr className="my-2 border-border" />
               <div className="flex justify-between text-xl">
                 <span className="font-semibold text-primary">Total Amount Due:</span>
-                <span className="font-bold text-primary">GHS {totalAmount.toFixed(2)}</span>
+                <span className="font-bold text-primary">{currency} {totalAmount.toFixed(2)}</span>
               </div>
             </div>
           </div>

@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import type { Employee } from "@/types";
 import { employeeCompensationTypes, wagePeriods } from "@/types";
 import { Switch } from "../ui/switch";
+import { useAuth } from "@/contexts/AuthContext";
 
 const employeeSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -68,6 +69,9 @@ interface EmployeeFormProps {
 
 export default function EmployeeForm({ initialData, onSave, isSaving, mode }: EmployeeFormProps) {
   const router = useRouter();
+  const { currentBusiness } = useAuth();
+  const currency = currentBusiness?.currency || 'GHS';
+
   const { control, register, handleSubmit, watch, formState: { errors } } = useForm<EmployeeFormInputs>({
     resolver: zodResolver(employeeSchema),
     defaultValues: initialData || {
@@ -87,7 +91,6 @@ export default function EmployeeForm({ initialData, onSave, isSaving, mode }: Em
 
   const onSubmit: SubmitHandler<EmployeeFormInputs> = async (data) => {
     const dataToSave = { ...data };
-    // Clear unused compensation fields before saving to prevent storing `undefined`
     if (dataToSave.compensationType === 'Salary') {
       delete (dataToSave as any).wageRate;
       delete (dataToSave as any).wagePeriod;
@@ -176,7 +179,7 @@ export default function EmployeeForm({ initialData, onSave, isSaving, mode }: Em
             </div>
             {watchedCompensationType === 'Salary' && (
               <div>
-                <Label htmlFor="grossSalary">Gross Monthly Salary (GHS) *</Label>
+                <Label htmlFor="grossSalary">Gross Monthly Salary ({currency}) *</Label>
                  <div className="relative">
                     <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input id="grossSalary" type="number" step="0.01" {...register("grossSalary")} className="pl-8" />
@@ -187,7 +190,7 @@ export default function EmployeeForm({ initialData, onSave, isSaving, mode }: Em
             {watchedCompensationType === 'Wage' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <Label htmlFor="wageRate">Wage Rate (GHS) *</Label>
+                    <Label htmlFor="wageRate">Wage Rate ({currency}) *</Label>
                      <div className="relative">
                         <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input id="wageRate" type="number" step="0.01" {...register("wageRate")} className="pl-8" />

@@ -17,6 +17,7 @@ import { useEffect } from "react";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
   { value: "inventory", label: "Inventory" },
@@ -69,6 +70,9 @@ interface ItemFormProps {
 const NO_CATEGORY_VALUE = "__NO_CATEGORY__";
 
 export default function ItemForm({ item, categories, onSave, setOpen, isSaving }: ItemFormProps) {
+  const { currentBusiness } = useAuth();
+  const currency = currentBusiness?.currency || 'GHS';
+  
   const { control, register, handleSubmit, watch, formState: { errors }, setValue, getValues } = useForm<ItemFormInputs>({
     resolver: zodResolver(itemSchema),
     defaultValues: item ? {
@@ -195,12 +199,12 @@ export default function ItemForm({ item, categories, onSave, setOpen, isSaving }
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="sellingPrice">Selling Price (GHS) *</Label>
+                <Label htmlFor="sellingPrice">Selling Price ({currency}) *</Label>
                 <Input id="sellingPrice" type="number" step="0.01" {...register("sellingPrice")} aria-invalid={!!errors.sellingPrice} />
                 {errors.sellingPrice && <p className="text-sm text-destructive mt-1">{errors.sellingPrice.message}</p>}
               </div>
               <div>
-                <Label htmlFor="costPrice">Cost Price (GHS)</Label>
+                <Label htmlFor="costPrice">Cost Price ({currency})</Label>
                 <Input id="costPrice" type="number" step="0.01" {...register("costPrice")} aria-invalid={!!errors.costPrice}/>
                 {errors.costPrice && <p className="text-sm text-destructive mt-1">{errors.costPrice.message}</p>}
               </div>
@@ -306,5 +310,3 @@ export default function ItemForm({ item, categories, onSave, setOpen, isSaving }
     </DialogContent>
   );
 }
-
-    

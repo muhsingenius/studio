@@ -4,12 +4,13 @@
 import type { User as FirebaseUser } from "firebase/auth";
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { auth, db } from "@/lib/firebase";
-import type { User, Role } from "@/types";
+import type { User, Role, Business } from "@/types";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation"; 
 
 interface AuthContextType {
   currentUser: User | null;
+  currentBusiness: Business | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
   logout: () => Promise<void>;
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -38,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               name: fbUser.displayName,
               role: "Staff", // Default/fallback role
           });
+          setCurrentBusiness(null);
           setLoading(false);
           return;
         }
@@ -47,8 +50,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
-            setCurrentUser({ id: fbUser.uid, ...userDocSnap.data() } as User);
+            const userProfile = { id: fbUser.uid, ...userDocSnap.data() } as User;
+            setCurrentUser(userProfile);
             console.log(`AuthContext: User profile for UID ${fbUser.uid} fetched successfully.`);
+            
+            // --- Fetch Business Data ---
+            if (userProfile.businessId) {
+              const businessDocRef = doc(db, "businesses", userProfile.businessId);
+              const businessDocSnap = await getDoc(businessDocRef);
+              if (businessDocSnap.exists()) {
+                setCurrentBusiness({ id: businessDocSnap.id, ...businessDocSnap.data() } as Business);
+                console.log(`AuthContext: Business profile for ID ${userProfile.businessId} fetched.`);
+              } else {
+                setCurrentBusiness(null);
+                console.warn(`AuthContext: Business profile for ID ${userProfile.businessId} not found.`);
+              }
+            } else {
+              setCurrentBusiness(null);
+            }
           } else {
             console.warn(`AuthContext: User profile for UID ${fbUser.uid} not found in Firestore. Creating new default profile.`);
             const newUserProfile: User = {
@@ -59,6 +78,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             };
             await setDoc(userDocRef, newUserProfile);
             setCurrentUser(newUserProfile);
+            setCurrentBusiness(null); // No business yet for new user
             console.log(`AuthContext: New default profile created for UID ${fbUser.uid}.`);
           }
         } catch (error: any) {
@@ -74,9 +94,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } else {
             setCurrentUser(null); 
           }
+          setCurrentBusiness(null);
         }
       } else {
         setCurrentUser(null);
+        setCurrentBusiness(null);
         console.log("AuthContext: Auth state changed. No user (logged out or unauthenticated).");
       }
       setLoading(false);
@@ -91,6 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await auth.signOut();
       setCurrentUser(null);
+      setCurrentBusiness(null);
       setFirebaseUser(null);
       console.log("AuthContext: Logout successful. Redirecting to /login.");
       router.push("/login"); // Redirect to login after logout
@@ -103,6 +126,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = {
     currentUser,
+    currentBusiness,
     firebaseUser,
     loading,
     logout,

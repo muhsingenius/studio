@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import type { RevenueRecord, PaymentMethod, RevenueSourceCategory } from "@/types";
 import { revenueSourceCategories } from "@/types"; // Import categories
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 const paymentMethods: PaymentMethod[] = ["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Card", "Other"];
 
@@ -44,7 +45,9 @@ interface RevenueFormProps {
 
 export default function RevenueForm({ initialData, onSave, isSaving, mode }: RevenueFormProps) {
   const router = useRouter();
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // State for calendar popover
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const { currentBusiness } = useAuth();
+  const currency = currentBusiness?.currency || 'GHS';
 
   const { control, register, handleSubmit, formState: { errors } } = useForm<RevenueFormInputs>({
     resolver: zodResolver(revenueSchema),
@@ -53,7 +56,7 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
         dateReceived: new Date(initialData.dateReceived),
     } : {
       dateReceived: new Date(),
-      source: undefined, // Default to undefined for Select placeholder
+      source: undefined,
       description: "",
       amount: 0,
       paymentMethod: undefined,
@@ -149,7 +152,7 @@ export default function RevenueForm({ initialData, onSave, isSaving, mode }: Rev
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-                <Label htmlFor="amount">Amount (GHS) *</Label>
+                <Label htmlFor="amount">Amount ({currency}) *</Label>
                 <div className="relative">
                     <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
