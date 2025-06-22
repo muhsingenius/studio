@@ -113,7 +113,22 @@ export default function ExpensesPage() {
         return;
     }
     setIsSaving(true);
-    const expenseData = { ...data, businessId: currentUser.businessId, recordedBy: currentUser.id };
+    
+    // Sanitize and round the amount to two decimal places to prevent floating point issues.
+    const sanitizedAmount = parseFloat(data.amount.toFixed(2));
+    if (isNaN(sanitizedAmount)) {
+        toast({ title: "Invalid Amount", description: "The amount entered is not a valid number.", variant: "destructive" });
+        setIsSaving(false);
+        return;
+    }
+    
+    const expenseData = { 
+      ...data, 
+      amount: sanitizedAmount,
+      businessId: currentUser.businessId, 
+      recordedBy: currentUser.id 
+    };
+
     try {
         if (selectedExpense) {
             const expenseDocRef = doc(db, "expenses", selectedExpense.id);
