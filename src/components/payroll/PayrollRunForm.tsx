@@ -11,7 +11,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Calendar } from "../ui/calendar";
-import { CalendarIcon, DollarSign } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { calculateSSNIT, calculatePAYE } from "@/lib/payroll-calculator";
@@ -42,37 +42,60 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
-    const { control, register, watch, handleSubmit, formState: { errors } } = useForm<FormValues>({
+    const { control, register, watch, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
         defaultValues: {
             period: new Date(),
             paymentDate: new Date(),
-            items: employees.map(e => ({
-                employeeId: e.id,
-                name: e.name,
-                compensationType: e.compensationType,
-                grossSalary: e.grossSalary,
-                wageRate: e.wageRate,
-                wagePeriod: e.wagePeriod,
-                unitsWorked: "",
-            })),
+            items: [],
         }
     });
+    
+    // This useEffect ensures the form is correctly populated when the employee data loads.
+    useEffect(() => {
+        if (employees.length > 0) {
+            reset({
+                period: new Date(),
+                paymentDate: new Date(),
+                items: employees.map(e => ({
+                    employeeId: e.id,
+                    name: e.name,
+                    compensationType: e.compensationType,
+                    grossSalary: e.grossSalary,
+                    wageRate: e.wageRate,
+                    wagePeriod: e.wagePeriod,
+                    unitsWorked: "",
+                })),
+            });
+        }
+    }, [employees, reset]);
+
 
     const { fields } = useFieldArray({ control, name: "items" });
     const watchedItems = watch("items");
 
     const payrollData = useMemo(() => {
         const results: (PayrollItem & { unitsWorked: string })[] = [];
-        let totalGrossPay = 0, totalEmployeeSSNIT = 0, totalEmployerSSNIT = 0, totalPAYE = 0, totalNetPay = 0;
+        const totals = {
+            totalGrossPay: 0,
+            totalEmployeeSSNIT: 0,
+            totalEmployerSSNIT: 0,
+            totalPAYE: 0,
+            totalNetPay: 0,
+            totalCostToBusiness: 0,
+        };
 
-        watchedItems.forEach((item, index) => {
-            const originalEmployee = employees.find(e => e.id === item.employeeId);
+        const employeeMap = new Map(employees.map(e => [e.id, e]));
+
+        watchedItems.forEach((formItem) => {
+            const originalEmployee = employeeMap.get(formItem.employeeId);
             let grossPay = 0;
-            if (item.compensationType === 'Salary') {
-                grossPay = item.grossSalary || 0;
-            } else {
-                const wageRate = originalEmployee?.wageRate || 0;
-                grossPay = wageRate * (parseFloat(item.unitsWorked) || 0);
+
+            if (formItem.compensationType === 'Salary') {
+                grossPay = formItem.grossSalary || 0;
+            } else if (originalEmployee) {
+                const rate = originalEmployee.wageRate || 0;
+                const units = parseFloat(formItem.unitsWorked) || 0;
+                grossPay = rate * units;
             }
 
             const { employeeSSNIT, employerSSNIT } = calculateSSNIT(grossPay, settings.ssnitRates);
@@ -81,27 +104,22 @@ export default function PayrollRunForm({ employees, settings, onFinalize }: Payr
             const netPay = taxableIncome - paye;
             
             results.push({
-                employeeId: item.employeeId,
-                employeeName: item.name,
+                employeeId: formItem.employeeId,
+                employeeName: formItem.name,
                 grossPay, employeeSSNIT, taxableIncome, paye, netPay,
-                unitsWorked: item.unitsWorked,
+                unitsWorked: formItem.unitsWorked,
             });
 
-            totalGrossPay += grossPay;
-            totalEmployeeSSNIT += employeeSSNIT;
-            totalEmployerSSNIT += employerSSNIT;
-            totalPAYE += paye;
-            totalNetPay += netPay;
+            totals.totalGrossPay += grossPay;
+            totals.totalEmployeeSSNIT += employeeSSNIT;
+            totals.totalEmployerSSNIT += employerSSNIT;
+            totals.totalPAYE += paye;
+            totals.totalNetPay += netPay;
+            totals.totalCostToBusiness += grossPay + employerSSNIT;
         });
 
-        return {
-            items: results,
-            totals: {
-                totalGrossPay, totalEmployeeSSNIT, totalEmployerSSNIT, totalPAYE, totalNetPay,
-                totalCostToBusiness: totalGrossPay + totalEmployerSSNIT,
-            }
-        };
-    }, [watchedItems, settings, employees]);
+        return { items: results, totals };
+    }, [watchedItems, employees, settings]);
 
     const handleFormSubmit = (data: FormValues) => {
         setIsSaving(true);
